@@ -2,8 +2,6 @@
 //!
 //! Processes byte stream → maintains a 2D grid of cells with attributes.
 
-use std::collections::HashMap;
-
 #[derive(Debug, Clone, Default)]
 pub struct Cell {
     pub ch: char,

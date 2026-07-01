@@ -7,6 +7,7 @@ use image::{ImageBuffer, Rgba};
 pub struct Renderer {
     cell_width: u32,
     cell_height: u32,
+    #[allow(dead_code)]
     font_size: f32,
 }
 
@@ -24,7 +25,7 @@ impl Renderer {
     pub fn render_png(&self, screen: &Screen) -> Result<Vec<u8>> {
         let width = screen.cols as u32 * self.cell_width;
         let height = screen.rows as u32 * self.cell_height;
-        
+
         let mut img: ImageBuffer<Rgba<u8>, Vec<u8>> =
             ImageBuffer::from_pixel(width, height, Rgba([30, 30, 30, 255]));
 
@@ -45,15 +46,10 @@ impl Renderer {
             }
         }
 
+        use image::ImageEncoder;
         let mut buf = Vec::new();
-        image::write_buffer_with_encoder(
-            &mut buf,
-            img.as_raw(),
-            width,
-            height,
-            image::ExtendedColorType::Rgba8,
-            image::ImageFormat::Png,
-        )?;
+        let encoder = image::codecs::png::PngEncoder::new(&mut buf);
+        encoder.write_image(img.as_raw(), width, height, image::ExtendedColorType::Rgba8)?;
         Ok(buf)
     }
 }

@@ -3,8 +3,8 @@
 //! Unix: forkpty via portable-pty.
 //! Windows: ConPTY via portable-pty.
 
-pub use portable_pty::PtyPair;
 use anyhow::Result;
+pub use portable_pty::PtyPair;
 use std::io::{Read, Write};
 
 pub struct PtyHandle {
@@ -23,7 +23,7 @@ pub fn open_pty(cols: u16, rows: u16) -> Result<PtyHandle> {
     })?;
 
     let writer = pair.master.take_writer()?;
-    let reader = pair.master.take_reader()?;
+    let reader = pair.master.try_clone_reader()?;
 
     Ok(PtyHandle {
         pair,

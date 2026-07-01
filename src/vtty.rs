@@ -38,17 +38,17 @@ impl VttyManager {
         rows: u16,
     ) -> anyhow::Result<VttySessionId> {
         let id = format!("kou-{}", std::process::id());
-        
+
         // Spawn PTY
         let _handle = pty::open_pty(cols, rows)?;
-        
+
         // Spawn child process in PTY
         let mut cmd = tokio::process::Command::new("bash");
         if let Some(dir) = cwd {
             cmd.current_dir(dir);
         }
         // TODO: connect child stdio to PTY slave
-        
+
         let session = VttySession {
             id: id.clone(),
             name: None,
@@ -87,7 +87,7 @@ impl VttyManager {
         let session = sessions
             .get_mut(id)
             .ok_or_else(|| anyhow::anyhow!("session {} not found", id))?;
-        
+
         // TODO: write to PTY
         session.screen.feed(text.as_bytes());
         Ok(())

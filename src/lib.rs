@@ -18,9 +18,9 @@
 //! # }
 //! ```
 
-pub mod vtty;
-pub mod screen;
 pub mod pty;
 pub mod render;
+pub mod screen;
+pub mod vtty;
 
 pub use vtty::{VttyManager, VttySession, VttySessionId};

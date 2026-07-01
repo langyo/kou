@@ -29,21 +29,25 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.cmd {
-        Some(Command::Launch { command, cols, rows }) => {
+        Some(Command::Launch {
+            command,
+            cols,
+            rows,
+        }) => {
             let mgr = kou::VttyManager::new();
             let id = mgr.launch(&command, None, cols, rows).await?;
             println!("Session: {}", id);
-            
+
             // Simple REPL
             loop {
                 use std::io::{self, BufRead, Write};
                 print!("> ");
                 io::stdout().flush()?;
-                
+
                 let mut line = String::new();
                 io::stdin().lock().read_line(&mut line)?;
                 let line = line.trim();
-                
+
                 match line {
                     "exit" | "quit" => break,
                     "screen" => {
@@ -58,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
             }
-            
+
             mgr.kill(&id).await;
         }
         None => {
