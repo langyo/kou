@@ -297,6 +297,11 @@ impl FontCache {
         self.faces.is_empty()
     }
 
+    /// An empty cache (no faces) — the renderer degrades to solid blocks.
+    pub fn empty() -> Self {
+        FontCache { faces: Vec::new() }
+    }
+
     /// Pick the first face that defines a glyph for `ch`, returning a scaled
     /// glyph ready to outline. `ab_glyph` reports a missing glyph as
     /// `GlyphId(0)`, which we treat as "not in this face".
@@ -311,22 +316,40 @@ impl FontCache {
     }
 
     /// Rasterise `ch` into a per-pixel coverage callback, using the first face
-    /// that covers the codepoint (Latin before CJK). `x`/`y` is the cell's
-    /// top-left in pixels; the ascent offset is applied internally. Returns
-    /// `true` if any face rendered the glyph.
-    pub fn draw_char<F: FnMut(u32, u32, f32)>(&self, ch: char, x: f32, y: f32, mut put: F) -> bool {
+    /// that covers the codepoint (Latin before CJK). `cell_x`/`cell_y` is the
+    /// cell's top-left in pixels; the ascent offset is applied internally. The
+    /// callback receives **absolute** pixel coordinates (already offset by the
+    /// glyph's positioned bounding box), so the caller must NOT add the cell
+    /// origin again. Returns `true` if any face rendered the glyph.
+    pub fn draw_char<F: FnMut(u32, u32, f32)>(
+        &self,
+        ch: char,
+        cell_x: f32,
+        cell_y: f32,
+        mut put: F,
+    ) -> bool {
         for face in &self.faces {
             if face.glyph_id(ch).0 == 0 {
                 continue;
             }
             let mut glyph = face.scaled_glyph(ch);
-            glyph.position = ab_glyph::point(x, y + face.ascent());
-            if let Some(outlined) = face.outline_glyph(glyph) {
-                outlined.draw(|gx, gy, cov| {
-                    put(gx, gy, cov);
-                });
-                return true;
-            }
+            glyph.position = ab_glyph::point(cell_x, cell_y + face.ascent());
+            let Some(outlined) = face.outline_glyph(glyph) else {
+                continue;
+            };
+            // `OutlinedGlyph::draw` yields coords relative to the glyph's
+            // bounding-box min; offset them back to absolute image space.
+            let bounds = outlined.px_bounds();
+            let min_x = bounds.min.x.floor();
+            let min_y = bounds.min.y.floor();
+            outlined.draw(|gx, gy, cov| {
+                let x = min_x + gx as f32;
+                let y = min_y + gy as f32;
+                if x >= 0.0 && y >= 0.0 {
+                    put(x as u32, y as u32, cov);
+                }
+            });
+            return true;
         }
         false
     }

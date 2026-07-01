@@ -16,6 +16,15 @@ pub struct Cell {
     pub bold: bool,
     pub italic: bool,
     pub underline: bool,
+    /// `true` for the right-hand continuation cell of a double-wide (CJK)
+    /// glyph. Renderers skip these (the wide char is drawn from the left cell).
+    pub wide_cont: bool,
+}
+
+/// Display width of `ch` on the terminal grid (1 or 2). CJK / full-width /
+/// wide emoji count as 2; control chars as 0.
+pub fn char_width(ch: char) -> u16 {
+    unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0) as u16
 }
 
 #[derive(Debug, Clone)]
@@ -87,12 +96,28 @@ impl Screen {
     // ── primitive ops used by the performer ──────────────────────────────
 
     fn put(&mut self, ch: char) {
-        if self.cursor_col >= self.cols {
+        let w = char_width(ch) as usize;
+        if w == 0 {
+            // Zero-width (control/combining): drop — we don't compose clusters.
+            return;
+        }
+        // A double-wide glyph needs two consecutive cells; wrap first if it
+        // would overflow the line (don't split a wide char across lines).
+        if self.cursor_col + w > self.cols {
             self.line_wrap();
         }
         let cell = self.cell_mut(self.cursor_row, self.cursor_col);
         cell.ch = ch;
-        self.cursor_col += 1;
+        if w == 2 && self.cursor_col + 1 < self.cols {
+            // Mark the continuation cell so the renderer skips it and the
+            // cursor lands after both cells.
+            self.cell_mut(self.cursor_row, self.cursor_col + 1)
+                .wide_cont = true;
+        }
+        self.cursor_col += w;
+        if self.cursor_col >= self.cols {
+            self.cursor_col = self.cols - 1;
+        }
     }
 
     fn line_wrap(&mut self) {
@@ -305,5 +330,28 @@ mod tests {
         assert_eq!(s.cell(0, 0).ch, 'h');
         assert_eq!(s.cell(0, 1).ch, '\0');
         assert_eq!(s.cell(0, 4).ch, '\0');
+    }
+
+    #[test]
+    fn cjk_chars_are_double_width_on_the_grid() {
+        let mut s = Screen::new(12, 1);
+        s.feed("ab中".as_bytes());
+        // 'a' at col 0, 'b' at col 1, '中' occupies cols 2..4.
+        assert_eq!(s.cell(0, 0).ch, 'a');
+        assert_eq!(s.cell(0, 1).ch, 'b');
+        assert_eq!(s.cell(0, 2).ch, '中');
+        assert!(s.cell(0, 3).wide_cont, "continuation cell not marked");
+        assert_eq!(s.cursor_col, 4);
+    }
+
+    #[test]
+    fn wide_char_does_not_split_across_lines() {
+        // A 3-col line: place a CJK char that would start at the last column —
+        // it must wrap to the next line rather than split.
+        let mut s = Screen::new(3, 2);
+        s.feed("ab中".as_bytes());
+        assert_eq!(s.cell(0, 2).ch, '\0', "col 2 of row 0 should be empty");
+        assert_eq!(s.cell(1, 0).ch, '中');
+        assert!(s.cell(1, 1).wide_cont);
     }
 }

@@ -35,6 +35,8 @@ image = "^0.25"
 ab_glyph = "^0.2"
 # Graphics protocols (kitty / iTerm2): base64 framing.
 base64 = "^0.22"
+# East-Asian character width — CJK glyphs are double-wide on the terminal grid.
+unicode-width = "^0.2"
 # ort-style font fetcher: reqwest without a TLS provider; we install ring below
 # so the provider is explicit (and so the same binary can opt out of fetching).
 reqwest = { version = "^0.13", features = ["blocking", "rustls-no-provider"], default-features = false, optional = true }
