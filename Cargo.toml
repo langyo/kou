@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 authors = ["langyo <langyo.china@gmail.com>"]
 license-file = "LICENSE"
-description = "Virtual terminal automation — PTY + VT100 + MCP"
+description = "Virtual terminal automation — PTY + VT100 + image protocols + ort-style fonts"
 repository = "https://github.com/celestia-island/kou"
 keywords = ["terminal", "vtty", "pty", "vt100", "automation"]
 categories = ["development-tools", "os"]
@@ -33,9 +33,18 @@ vte = "^0.13"
 # Terminal rendering (PNG)
 image = "^0.25"
 ab_glyph = "^0.2"
+# Graphics protocols (kitty / iTerm2): base64 framing.
+base64 = "^0.22"
+# ort-style font fetcher: reqwest without a TLS provider; we install ring below
+# so the provider is explicit (and so the same binary can opt out of fetching).
+reqwest = { version = "^0.13", features = ["blocking", "rustls-no-provider"], default-features = false, optional = true }
+rustls = { version = "^0.23", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }
 # MCP (optional, for standalone MCP server)
 rmcp = { version = "^0.1", optional = true }
 
 [features]
-default = []
+default = ["font-fetch"]
+# Build/runtime font fetching (FiraCode / Source Han / Sarasa / SmileySans via a
+# configurable mirror). Off => callers must supply font paths themselves.
+font-fetch = ["dep:reqwest", "dep:rustls"]
 mcp = ["rmcp"]

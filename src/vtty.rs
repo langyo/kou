@@ -101,6 +101,16 @@ impl VttyManager {
         Ok(session.screen.text())
     }
 
+    /// Return a snapshot of the session's screen grid (cloned), for renderers
+    /// that need the cell attributes, not just the plain text.
+    pub async fn screen(&self, id: &str) -> anyhow::Result<Screen> {
+        let sessions = self.sessions.lock().await;
+        let session = sessions
+            .get(id)
+            .ok_or_else(|| anyhow::anyhow!("session {} not found", id))?;
+        Ok(session.screen.clone())
+    }
+
     pub async fn resize(&self, id: &str, cols: u16, rows: u16) -> anyhow::Result<()> {
         let mut sessions = self.sessions.lock().await;
         let session = sessions

@@ -1,6 +1,8 @@
 //! kou — Virtual terminal automation.
 //!
-//! PTY management + VT100/ANSI emulation + screen rendering.
+//! PTY management + a real VT100/ANSI screen emulator (via `vte`) + screen
+//! rendering that can rasterise to PNG with proper fonts or describe the frame
+//! to a capable terminal through a graphics protocol (kitty / iTerm2).
 //! Extracted from tairitsu's vtty engine as a standalone library.
 //!
 //! ## Quick Start
@@ -9,18 +11,24 @@
 //! use kou::VttyManager;
 //!
 //! # async fn run() -> anyhow::Result<()> {
-//! let mut mgr = VttyManager::new();
-//! let session = mgr.launch("bash", None, 80, 24).await?;
-//! mgr.send_text(&session.id, "echo hello\n").await?;
-//! let screen = mgr.screenshot(&session.id).await?;
-//! println!("{}", screen.text);
+//! let mgr = VttyManager::new();
+//! let id = mgr.launch("bash", None, 80, 24).await?;
+//! mgr.send_text(&id, "echo hello\n").await?;
+//! let screen = mgr.screenshot(&id).await?;
+//! println!("{}", screen);
 //! # Ok(())
 //! # }
 //! ```
 
+pub mod font;
+pub mod graphics;
 pub mod pty;
 pub mod render;
 pub mod screen;
 pub mod vtty;
 
+pub use font::{FontCache, FontFamily, FontSet};
+pub use graphics::GraphicsProtocol;
+pub use render::{render_graphics, render_png};
+pub use screen::Screen;
 pub use vtty::{VttyManager, VttySession, VttySessionId};
