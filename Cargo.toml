@@ -1,0 +1,40 @@
+[package]
+name = "kou"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["langyo <langyo.china@gmail.com>"]
+license = "SySL-1.0"
+description = "Virtual terminal automation — PTY + VT100 + MCP"
+repository = "https://github.com/celestia-island/kou"
+keywords = ["terminal", "vtty", "pty", "vt100", "automation"]
+categories = ["development-tools", "os"]
+
+[lib]
+name = "kou"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kou"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "^1", features = ["rt-multi-thread", "process", "macros", "time", "sync", "io-util"] }
+serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
+anyhow = "^1"
+tracing = "^0.1"
+clap = { version = "^4", features = ["derive"] }
+# PTY
+portable-pty = "^0.8"
+# VT100 parsing
+vte = "^0.13"
+# Terminal rendering (PNG)
+image = "^0.25"
+ab_glyph = "^0.2"
+# MCP (optional, for standalone MCP server)
+rmcp = { version = "^0.1", optional = true }
+
+[features]
+default = []
+mcp = ["rmcp"]
