@@ -8,7 +8,7 @@
 
 use vte::{Params, Perform};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Cell {
     pub ch: char,
     pub fg: u8,
@@ -19,6 +19,23 @@ pub struct Cell {
     /// `true` for the right-hand continuation cell of a double-wide (CJK)
     /// glyph. Renderers skip these (the wide char is drawn from the left cell).
     pub wide_cont: bool,
+}
+
+impl Default for Cell {
+    fn default() -> Self {
+        // Terminal convention: the default attribute is white-on-black
+        // (fg=7, bg=0), so unstyled text renders visible against the dark
+        // background and `read` can treat fg=7/bg=0 as "no annotation".
+        Cell {
+            ch: '\0',
+            fg: 7,
+            bg: 0,
+            bold: false,
+            italic: false,
+            underline: false,
+            wide_cont: false,
+        }
+    }
 }
 
 /// Display width of `ch` on the terminal grid (1 or 2). CJK / full-width /
@@ -36,6 +53,13 @@ pub struct Screen {
     pub cursor_col: usize,
     pub title: String,
     pub alt_screen: bool,
+    /// Current "pen" attributes — applied to every character subsequently
+    /// written by `put`, exactly like a real terminal's SGR state.
+    pub pen_fg: u8,
+    pub pen_bg: u8,
+    pub pen_bold: bool,
+    pub pen_italic: bool,
+    pub pen_underline: bool,
 }
 
 impl Screen {
@@ -48,6 +72,11 @@ impl Screen {
             cursor_col: 0,
             title: String::new(),
             alt_screen: false,
+            pen_fg: 7,
+            pen_bg: 0,
+            pen_bold: false,
+            pen_italic: false,
+            pen_underline: false,
         }
     }
 
@@ -59,7 +88,9 @@ impl Screen {
         self.cursor_col = self.cursor_col.min(cols.saturating_sub(1));
     }
 
-    /// Plain-text view of the grid (trailing blanks trimmed per line).
+    /// Plain-text view of the grid (trailing blanks trimmed per line). Wide
+    /// characters contribute one codepoint but two display columns; their
+    /// continuation cells are skipped so no spurious space is emitted.
     pub fn text(&self) -> String {
         let mut out = String::with_capacity(self.cols * self.rows);
         for row in 0..self.rows {
@@ -68,6 +99,9 @@ impl Screen {
                 line_end -= 1;
             }
             for col in 0..line_end {
+                if self.cell(row, col).wide_cont {
+                    continue;
+                }
                 let ch = self.cell(row, col).ch;
                 out.push(if ch == '\0' { ' ' } else { ch });
             }
@@ -106,13 +140,29 @@ impl Screen {
         if self.cursor_col + w > self.cols {
             self.line_wrap();
         }
+        // Snapshot the pen before borrowing the cell mutably.
+        let (fg, bg, bold, italic, underline) = (
+            self.pen_fg,
+            self.pen_bg,
+            self.pen_bold,
+            self.pen_italic,
+            self.pen_underline,
+        );
         let cell = self.cell_mut(self.cursor_row, self.cursor_col);
         cell.ch = ch;
+        // Apply the current pen so multi-character coloured runs render and
+        // read correctly (a real terminal's SGR state carries across writes).
+        cell.fg = fg;
+        cell.bg = bg;
+        cell.bold = bold;
+        cell.italic = italic;
+        cell.underline = underline;
         if w == 2 && self.cursor_col + 1 < self.cols {
             // Mark the continuation cell so the renderer skips it and the
             // cursor lands after both cells.
-            self.cell_mut(self.cursor_row, self.cursor_col + 1)
-                .wide_cont = true;
+            let cont = self.cell_mut(self.cursor_row, self.cursor_col + 1);
+            cont.wide_cont = true;
+            cont.bg = bg;
         }
         self.cursor_col += w;
         if self.cursor_col >= self.cols {
@@ -263,31 +313,33 @@ impl Perform for Perf<'_> {
     }
 }
 
-/// Apply a basic SGR parameter stream: styles + the 16-colour palette.
+/// Apply a basic SGR parameter stream: styles + the 16-colour palette. The
+/// terminal model is a "pen" — attributes set here apply to every character
+/// written afterwards, not just the cell under the cursor.
 fn apply_sgr(screen: &mut Screen, params: &Params) {
-    // Operate on the cell at the cursor (and remember it so following puts
-    // inherit the style — we model the "current attributes" by editing the
-    // cursor cell's attributes, which the next put() overwrites char-only).
-    let row = screen.cursor_row;
-    let col = screen.cursor_col.min(screen.cols.saturating_sub(1));
     let mut idx = 0;
     let flat: Vec<u16> = params.iter().flat_map(|p| p.iter().copied()).collect();
     while idx < flat.len() {
         match flat[idx] {
             0 => {
-                let cell = &mut screen.cells[row * screen.cols + col];
-                *cell = Cell::default();
+                screen.pen_fg = 7;
+                screen.pen_bg = 0;
+                screen.pen_bold = false;
+                screen.pen_italic = false;
+                screen.pen_underline = false;
             }
-            1 => screen.cells[row * screen.cols + col].bold = true,
-            3 => screen.cells[row * screen.cols + col].italic = true,
-            4 => screen.cells[row * screen.cols + col].underline = true,
-            22 => screen.cells[row * screen.cols + col].bold = false,
-            23 => screen.cells[row * screen.cols + col].italic = false,
-            24 => screen.cells[row * screen.cols + col].underline = false,
-            30..=37 => screen.cells[row * screen.cols + col].fg = (flat[idx] - 30) as u8,
-            40..=47 => screen.cells[row * screen.cols + col].bg = (flat[idx] - 40) as u8,
-            90..=97 => screen.cells[row * screen.cols + col].fg = (flat[idx] - 90 + 8) as u8,
-            100..=107 => screen.cells[row * screen.cols + col].bg = (flat[idx] - 100 + 8) as u8,
+            1 => screen.pen_bold = true,
+            3 => screen.pen_italic = true,
+            4 => screen.pen_underline = true,
+            22 => screen.pen_bold = false,
+            23 => screen.pen_italic = false,
+            24 => screen.pen_underline = false,
+            30..=37 => screen.pen_fg = (flat[idx] - 30) as u8,
+            40..=47 => screen.pen_bg = (flat[idx] - 40) as u8,
+            90..=97 => screen.pen_fg = (flat[idx] - 90 + 8) as u8,
+            100..=107 => screen.pen_bg = (flat[idx] - 100 + 8) as u8,
+            39 => screen.pen_fg = 7, // default fg
+            49 => screen.pen_bg = 0, // default bg
             _ => {}
         }
         idx += 1;

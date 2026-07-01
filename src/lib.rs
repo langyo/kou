@@ -23,12 +23,14 @@
 pub mod font;
 pub mod graphics;
 pub mod pty;
+pub mod read;
 pub mod render;
 pub mod screen;
 pub mod vtty;
 
 pub use font::{FontCache, FontFamily, FontSet};
 pub use graphics::GraphicsProtocol;
+pub use read::{ReadStyle, read, read_default};
 pub use render::{render_graphics, render_png, render_png_supersampled};
 pub use screen::Screen;
 pub use vtty::{VttyManager, VttySession, VttySessionId};
