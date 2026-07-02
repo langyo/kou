@@ -35,7 +35,32 @@ pub struct VttySession {
 impl VttySession {
     /// Clone the current screen grid (snapshot).
     pub fn screen_snapshot(&self) -> Screen {
-        self.screen.lock().unwrap().clone()
+        // Tolerate a poisoned mutex (a panic during feed) rather than
+        // propagating it into the caller's async task.
+        self.screen
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or_else(|p| p.into_inner().clone())
+    }
+
+    /// Reap the child and drop the PTY master so the reader pump sees EOF and
+    /// exits. Called from `kill` and from `Drop`.
+    fn shutdown(&self) {
+        if let Ok(mut guard) = self.pty.lock() {
+            if let Some(pty) = guard.as_mut() {
+                let _ = pty.child.kill();
+                let _ = pty.child.wait();
+            }
+            // Dropping the Pty drops the master → the pump thread's read()
+            // returns 0 (EOF) and the thread exits. No more leaked threads/fds.
+            *guard = None;
+        }
+    }
+}
+
+impl Drop for VttySession {
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }
 
@@ -119,21 +144,18 @@ impl VttyManager {
     }
 
     pub async fn kill(&self, id: &str) -> bool {
-        let pty_arc = {
+        let session = {
             let mut sessions = self.sessions.lock().await;
-            let Some(session) = sessions.get_mut(id) else {
-                return false;
-            };
-            session.alive = false;
-            Arc::clone(&session.pty)
-        };
-        if let Ok(mut guard) = pty_arc.lock() {
-            if let Some(pty) = guard.as_mut() {
-                let _ = pty.child.kill();
-                let _ = pty.child.wait();
+            // Remove (and later Drop) the session so its child is reaped and
+            // its pump thread exits, instead of lingering as alive=false.
+            match sessions.remove(id) {
+                Some(s) => s,
+                None => return false,
             }
-            *guard = None; // drops master → reader thread sees EOF
-        }
+        };
+        // Drop reaps the child + closes the PTY; call shutdown explicitly too
+        // for clarity (idempotent).
+        session.shutdown();
         true
     }
 
@@ -192,11 +214,10 @@ impl VttyManager {
             let session = sessions
                 .get_mut(id)
                 .ok_or_else(|| anyhow::anyhow!("session {} not found", id))?;
-            session
-                .screen
-                .lock()
-                .unwrap()
-                .resize(cols as usize, rows as usize);
+            // Poison-tolerant: resize even if a prior feed panicked.
+            if let Ok(mut s) = session.screen.lock() {
+                s.resize(cols as usize, rows as usize);
+            }
             session.cols = cols;
             session.rows = rows;
             Arc::clone(&session.pty)
