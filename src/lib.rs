@@ -12,9 +12,9 @@
 //!
 //! # async fn run() -> anyhow::Result<()> {
 //! let mgr = VttyManager::new();
-//! let id = mgr.launch("bash", None, 80, 24).await?;
-//! mgr.send_text(&id, "echo hello\n").await?;
-//! let screen = mgr.screenshot(&id).await?;
+//! let info = mgr.launch("bash", None, &[], 80, 24, None).await?;
+//! mgr.send_text(&info.id, "echo hello\n").await?;
+//! let screen = mgr.screenshot(&info.id).await?;
 //! println!("{}", screen);
 //! # Ok(())
 //! # }
@@ -33,4 +33,4 @@ pub use graphics::GraphicsProtocol;
 pub use read::{ReadStyle, read, read_default};
 pub use render::{render_graphics, render_png, render_png_supersampled};
 pub use screen::Screen;
-pub use vtty::{VttyManager, VttySession, VttySessionId};
+pub use vtty::{SessionInfo, VttyManager, VttySession, VttySessionId, encode_input, parse_keys};

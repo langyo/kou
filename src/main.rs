@@ -35,8 +35,8 @@ async fn main() -> anyhow::Result<()> {
             rows,
         }) => {
             let mgr = kou::VttyManager::new();
-            let id = mgr.launch(&command, None, cols, rows).await?;
-            println!("Session: {}", id);
+            let info = mgr.launch(&command, None, &[], cols, rows, None).await?;
+            println!("Session: {}", info.id);
 
             // Simple REPL
             loop {
@@ -51,19 +51,19 @@ async fn main() -> anyhow::Result<()> {
                 match line {
                     "exit" | "quit" => break,
                     "screen" => {
-                        let text = mgr.screenshot(&id).await?;
+                        let text = mgr.screenshot(&info.id).await?;
                         println!("{}", text);
                     }
                     _ => {
-                        mgr.send_text(&id, &format!("{}\n", line)).await?;
+                        mgr.send_text(&info.id, &format!("{}\n", line)).await?;
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                        let text = mgr.screenshot(&id).await?;
+                        let text = mgr.screenshot(&info.id).await?;
                         println!("{}", text);
                     }
                 }
             }
 
-            mgr.kill(&id).await;
+            mgr.kill(&info.id).await;
         }
         None => {
             eprintln!("Usage: kou launch <command> [--cols 80] [--rows 24]");

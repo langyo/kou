@@ -16,6 +16,8 @@ pub struct Pty {
     pub reader: Box<dyn Read + Send>,
     pub child: Box<dyn Child + Send + Sync>,
     master: Box<dyn MasterPty + Send>,
+    /// PID of the spawned child, captured right after `spawn_command`.
+    pub pid: Option<u32>,
 }
 
 impl Pty {
@@ -35,7 +37,16 @@ impl Pty {
 /// Open a PTY and spawn `command` (split on whitespace into program + args)
 /// attached to its slave end. The slave is closed in the parent so the reader
 /// receives EOF when the child exits.
-pub fn spawn(command: &str, cwd: Option<&Path>, cols: u16, rows: u16) -> Result<Pty> {
+///
+/// `env` adds or overrides environment variables on top of the parent's
+/// environment; pass an empty slice to inherit unchanged.
+pub fn spawn(
+    command: &str,
+    cwd: Option<&Path>,
+    env: &[(&str, &str)],
+    cols: u16,
+    rows: u16,
+) -> Result<Pty> {
     let pty_system = portable_pty::native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -53,11 +64,15 @@ pub fn spawn(command: &str, cwd: Option<&Path>, cols: u16, rows: u16) -> Result<
     if let Some(dir) = cwd {
         cmd.cwd(dir);
     }
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
 
     let child = pair
         .slave
         .spawn_command(cmd)
         .with_context(|| format!("spawn `{command}`"))?;
+    let pid = child.process_id();
     // Drop the slave in the parent so the reader EOFs on child exit.
     drop(pair.slave);
 
@@ -69,6 +84,7 @@ pub fn spawn(command: &str, cwd: Option<&Path>, cols: u16, rows: u16) -> Result<
         reader,
         child,
         master: pair.master,
+        pid,
     })
 }
 

@@ -63,8 +63,15 @@ pub struct Screen {
     /// printable character wraps to the next line before being drawn, instead
     /// of overwriting the last cell — matching real terminal behaviour.
     pub wrap_pending: bool,
+    /// Lines scrolled off the top of the grid, newest last, capped at
+    /// [`SCROLLBACK_MAX`]. Stored as rendered text (no cell attributes) which
+    /// is all the MCP "scrollback" tool and `find_text` need.
+    pub scrollback: Vec<String>,
     parser: vte::Parser,
 }
+
+/// Maximum number of off-screen lines retained in the scrollback buffer.
+pub const SCROLLBACK_MAX: usize = 1000;
 
 impl Clone for Screen {
     fn clone(&self) -> Self {
@@ -82,6 +89,7 @@ impl Clone for Screen {
             pen_italic: self.pen_italic,
             pen_underline: self.pen_underline,
             wrap_pending: self.wrap_pending,
+            scrollback: self.scrollback.clone(),
             parser: vte::Parser::new(),
         }
     }
@@ -103,6 +111,7 @@ impl std::fmt::Debug for Screen {
             .field("pen_italic", &self.pen_italic)
             .field("pen_underline", &self.pen_underline)
             .field("wrap_pending", &self.wrap_pending)
+            .field("scrollback_len", &self.scrollback.len())
             .field("parser", &"<vte::Parser>")
             .finish()
     }
@@ -124,14 +133,33 @@ impl Screen {
             pen_italic: false,
             pen_underline: false,
             wrap_pending: false,
+            scrollback: Vec::new(),
             parser: vte::Parser::new(),
         }
     }
 
     pub fn resize(&mut self, cols: usize, rows: usize) {
+        let mut new_cells = vec![Cell::default(); cols * rows];
+        let copy_rows = rows.min(self.rows);
+        let copy_cols = cols.min(self.cols);
+        for r in 0..copy_rows {
+            for c in 0..copy_cols {
+                new_cells[r * cols + c] = self.cell(r, c).clone();
+            }
+        }
+        // Shrinking the height discards the bottom rows — keep them in the
+        // scrollback so nothing is silently lost.
+        if rows < self.rows {
+            for r in rows..self.rows {
+                self.scrollback.push(self.row_text(r));
+            }
+            while self.scrollback.len() > SCROLLBACK_MAX {
+                self.scrollback.remove(0);
+            }
+        }
+        self.cells = new_cells;
         self.cols = cols;
         self.rows = rows;
-        self.cells = vec![Cell::default(); cols * rows];
         self.cursor_row = self.cursor_row.min(rows.saturating_sub(1));
         self.cursor_col = self.cursor_col.min(cols.saturating_sub(1));
     }
@@ -164,6 +192,72 @@ impl Screen {
 
     fn cell_mut(&mut self, row: usize, col: usize) -> &mut Cell {
         &mut self.cells[row * self.cols + col]
+    }
+
+    /// Render a single grid row to text: trailing blanks trimmed, wide
+    /// continuation cells skipped. Empty when the row is all blanks.
+    fn row_text(&self, row: usize) -> String {
+        let mut line_end = self.cols;
+        while line_end > 0 && self.cell(row, line_end - 1).ch == '\0' {
+            line_end -= 1;
+        }
+        let mut out = String::with_capacity(line_end);
+        for col in 0..line_end {
+            if self.cell(row, col).wide_cont {
+                continue;
+            }
+            let ch = self.cell(row, col).ch;
+            out.push(if ch == '\0' { ' ' } else { ch });
+        }
+        out.trim_end().to_string()
+    }
+
+    /// `true` when any cell on the grid holds a non-blank character.
+    pub fn has_output(&self) -> bool {
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                if self.cell(row, col).ch != '\0' {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Find every `(row, char_index)` where `pattern` occurs in a row's text.
+    /// `char_index` is the offset within the row's rendered (non-blank) text,
+    /// not the grid column — sufficient for the "did this string appear yet"
+    /// polling the MCP `wait` tool does.
+    pub fn find_text(&self, pattern: &str) -> Vec<(usize, usize)> {
+        if pattern.is_empty() {
+            return Vec::new();
+        }
+        let mut hits = Vec::new();
+        for row in 0..self.rows {
+            let line = self.row_text(row);
+            if let Some(pos) = line.find(pattern) {
+                hits.push((row, pos));
+            }
+        }
+        hits
+    }
+
+    /// All lines scrolled off the top, joined with newlines (oldest first).
+    pub fn scrollback_text(&self) -> String {
+        self.scrollback.join("\n")
+    }
+
+    /// Scrollback followed by the current screen, joined with a newline.
+    pub fn scrollback_with_screen(&self) -> String {
+        let sb = self.scrollback_text();
+        let screen = self.text();
+        if sb.is_empty() {
+            screen
+        } else if screen.is_empty() {
+            sb
+        } else {
+            format!("{sb}\n{screen}")
+        }
     }
 
     /// Feed a raw PTY byte stream through the vte parser.
@@ -276,6 +370,14 @@ impl Screen {
             return;
         }
         let n = n.min(self.rows);
+        // Capture the rows about to scroll off the top so the scrollback
+        // buffer retains them (capped to SCROLLBACK_MAX).
+        for row in 0..n {
+            self.scrollback.push(self.row_text(row));
+        }
+        while self.scrollback.len() > SCROLLBACK_MAX {
+            self.scrollback.remove(0);
+        }
         for row in 0..self.rows - n {
             for col in 0..self.cols {
                 let src = self.cell(row + n, col).clone();
