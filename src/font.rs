@@ -92,6 +92,7 @@ impl FontFamily {
 
     /// Source URL. `KOU_FONT_MIRROR` substitutes the canonical GitHub/jsDelivr
     /// host so a mirror or GFW-friendly host can serve the bytes instead.
+    #[cfg(feature = "font-fetch")]
     fn source_url(self) -> String {
         let raw = match self {
             FontFamily::FiraCode => {
@@ -398,10 +399,12 @@ mod tests {
         assert_eq!(names.len(), dedup.len(), "duplicate cache names: {names:?}");
     }
 
+    #[cfg(feature = "font-fetch")]
     #[test]
+    #[serial_test::serial]
     fn mirror_substitution_replaces_host() {
         let restore = std::env::var_os("KOU_FONT_MIRROR");
-        // SAFETY: serial env mutation in a single-threaded test.
+        // SAFETY: serialized via the `serial` attribute — no concurrent reader.
         unsafe { std::env::set_var("KOU_FONT_MIRROR", "https://mirror.example.com") };
         let url = FontFamily::FiraCode.source_url();
         assert!(

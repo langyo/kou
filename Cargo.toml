@@ -50,3 +50,6 @@ default = ["font-fetch"]
 # configurable mirror). Off => callers must supply font paths themselves.
 font-fetch = ["dep:reqwest", "dep:rustls"]
 mcp = ["rmcp"]
+
+[dev-dependencies]
+serial_test = "^3"

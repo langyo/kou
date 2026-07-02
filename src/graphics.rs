@@ -81,8 +81,12 @@ pub struct GraphicsRequest<'a> {
 
 /// Encode `req` for `protocol` into the inband escape sequence a terminal
 /// renders. Returns `None` for [`GraphicsProtocol::Off`] (caller should render
-/// a PNG instead) and for [`GraphicsProtocol::Sixel`] (no rasterizer).
+/// a PNG instead), for [`GraphicsProtocol::Sixel`] (no rasterizer), and for an
+/// empty payload (nothing to draw).
 pub fn encode(protocol: GraphicsProtocol, req: &GraphicsRequest<'_>) -> Option<String> {
+    if req.bytes.is_empty() {
+        return None;
+    }
     match protocol {
         GraphicsProtocol::Kitty => Some(encode_kitty(req)),
         GraphicsProtocol::Iterm => Some(encode_iterm(req)),
@@ -94,11 +98,11 @@ const KITTY_CHUNK: usize = 4096;
 
 /// Encode the kitty graphics protocol (`kitty2`).
 ///
-/// Emits a `a=t` (transmit) + `q=2` (place at cursor, no new placement id
-/// needed) sequence: a first chunk carrying the control payload
-/// `f=100,s=<w>,v=<h>,c=<cols>,r=<rows>,a=T` followed by `m=1`-continued chunks
-/// and a final `m=0` chunk. Kitty and clones (wezterm, ghostty, …) render it
-/// inline.
+/// Emits a fire-and-forget `a=t` (transmit, no response) placement sequence: a
+/// first chunk carrying the control payload `f=100,s=<w>,v=<h>,c=<cols>,
+/// r=<rows>,a=t` followed by `m=1`-continued chunks and a final `m=0` chunk.
+/// Kitty and clones (wezterm, ghostty, …) render it inline without echoing a
+/// status reply back into our own PTY reader.
 fn encode_kitty(req: &GraphicsRequest<'_>) -> String {
     let b64 = B64.encode(req.bytes);
     let bytes = b64.as_bytes();
@@ -110,9 +114,10 @@ fn encode_kitty(req: &GraphicsRequest<'_>) -> String {
         // APC begin.
         out.push_str("\x1b_G");
         if start == 0 {
-            // First chunk carries the control data (PNG = f=100).
+            // First chunk carries the control data (PNG = f=100). a=t means
+            // transmit-and-place; we omit q= so the terminal does not reply.
             out.push_str(&format!(
-                "a=T,t=d,f=100,s={w},v={h},c={cw},r={rh}",
+                "a=t,t=d,f=100,s={w},v={h},c={cw},r={rh}",
                 w = req.pixel_w,
                 h = req.pixel_h,
                 cw = req.cells_w,
@@ -154,6 +159,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[serial_test::serial]
     fn env_parsing() {
         let restore = std::env::var_os("KOU_GRAPHICS");
         for (raw, expected) in [
@@ -194,7 +200,7 @@ mod tests {
             "expected chunked frames, got {}",
             frames.len()
         );
-        assert!(enc.contains("a=T,t=d,f=100"));
+        assert!(enc.contains("a=t,t=d,f=100"));
     }
 
     #[test]

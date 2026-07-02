@@ -74,7 +74,9 @@ pub fn render_png_supersampled(
     }
     let out_w = buf.width / ss;
     let out_h = buf.height / ss;
-    let hi = image::RgbaImage::from_raw(buf.width, buf.height, buf.image).unwrap();
+    let hi = image::RgbaImage::from_raw(buf.width, buf.height, buf.image).ok_or_else(|| {
+        anyhow::anyhow!("rendered buffer dims {}x{} mismatch", buf.width, buf.height)
+    })?;
     let lo = image::imageops::resize(&hi, out_w, out_h, image::imageops::FilterType::Lanczos3);
     encode_png(lo.into_raw(), out_w, out_h)
 }

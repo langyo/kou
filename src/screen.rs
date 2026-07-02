@@ -60,6 +60,10 @@ pub struct Screen {
     pub pen_bold: bool,
     pub pen_italic: bool,
     pub pen_underline: bool,
+    /// Deferred-wrap flag: set when a write fills the last column. The next
+    /// printable character wraps to the next line before being drawn, instead
+    /// of overwriting the last cell — matching real terminal behaviour.
+    pub wrap_pending: bool,
 }
 
 impl Screen {
@@ -77,6 +81,7 @@ impl Screen {
             pen_bold: false,
             pen_italic: false,
             pen_underline: false,
+            wrap_pending: false,
         }
     }
 
@@ -120,6 +125,9 @@ impl Screen {
 
     /// Feed a raw PTY byte stream through the vte parser.
     pub fn feed(&mut self, data: &[u8]) {
+        if self.cols == 0 || self.rows == 0 {
+            return; // No grid to write into — never index an empty `cells`.
+        }
         let mut parser = vte::Parser::new();
         let mut perf = Perf { screen: self };
         for &b in data {
@@ -130,16 +138,39 @@ impl Screen {
     // ── primitive ops used by the performer ──────────────────────────────
 
     fn put(&mut self, ch: char) {
+        if self.cols == 0 || self.rows == 0 {
+            return;
+        }
         let w = char_width(ch) as usize;
         if w == 0 {
             // Zero-width (control/combining): drop — we don't compose clusters.
             return;
+        }
+        // Deferred wrap: if the previous write filled the last column, advance
+        // to the next line now, before drawing this character.
+        if self.wrap_pending {
+            self.line_wrap();
+            self.wrap_pending = false;
         }
         // A double-wide glyph needs two consecutive cells; wrap first if it
         // would overflow the line (don't split a wide char across lines).
         if self.cursor_col + w > self.cols {
             self.line_wrap();
         }
+        let row = self.cursor_row;
+        let col = self.cursor_col;
+
+        // If we're overwriting either half of an existing wide glyph, blank the
+        // other half so no stale wide char leaks through (text/render skip
+        // continuation cells, which would otherwise hide the new char).
+        if self.cell(row, col).wide_cont && col > 0 {
+            self.cell_mut(row, col - 1).ch = '\0';
+        }
+        if w == 1 && col + 1 < self.cols && self.cell(row, col + 1).wide_cont {
+            self.cell_mut(row, col + 1).wide_cont = false;
+            self.cell_mut(row, col + 1).ch = '\0';
+        }
+
         // Snapshot the pen before borrowing the cell mutably.
         let (fg, bg, bold, italic, underline) = (
             self.pen_fg,
@@ -148,25 +179,28 @@ impl Screen {
             self.pen_italic,
             self.pen_underline,
         );
-        let cell = self.cell_mut(self.cursor_row, self.cursor_col);
+        let cell = self.cell_mut(row, col);
         cell.ch = ch;
-        // Apply the current pen so multi-character coloured runs render and
-        // read correctly (a real terminal's SGR state carries across writes).
         cell.fg = fg;
         cell.bg = bg;
         cell.bold = bold;
         cell.italic = italic;
         cell.underline = underline;
-        if w == 2 && self.cursor_col + 1 < self.cols {
+        cell.wide_cont = false;
+        if w == 2 && col + 1 < self.cols {
             // Mark the continuation cell so the renderer skips it and the
             // cursor lands after both cells.
-            let cont = self.cell_mut(self.cursor_row, self.cursor_col + 1);
+            let cont = self.cell_mut(row, col + 1);
+            cont.ch = '\0';
             cont.wide_cont = true;
             cont.bg = bg;
         }
         self.cursor_col += w;
         if self.cursor_col >= self.cols {
+            // Filled the last column: park here and defer the wrap to the next
+            // printable char (classic terminal line-wrap semantics).
             self.cursor_col = self.cols - 1;
+            self.wrap_pending = true;
         }
     }
 
@@ -180,6 +214,7 @@ impl Screen {
     }
 
     fn newline(&mut self) {
+        self.wrap_pending = false;
         self.cursor_col = 0;
         if self.cursor_row + 1 >= self.rows {
             self.scroll_up(1);
@@ -189,6 +224,9 @@ impl Screen {
     }
 
     fn scroll_up(&mut self, n: usize) {
+        if self.rows == 0 || self.cols == 0 {
+            return;
+        }
         let n = n.min(self.rows);
         for row in 0..self.rows - n {
             for col in 0..self.cols {
@@ -203,23 +241,52 @@ impl Screen {
         }
     }
 
-    fn erase_in_line(&mut self, from_cursor: bool) {
-        let start = if from_cursor { self.cursor_col } else { 0 };
-        for col in start..self.cols {
+    fn erase_in_line_to_end(&mut self) {
+        for col in self.cursor_col..self.cols {
             *self.cell_mut(self.cursor_row, col) = Cell::default();
         }
     }
 
-    fn erase_in_display(&mut self, from_cursor: bool) {
-        let start_row = if from_cursor {
-            self.erase_in_line(true);
-            self.cursor_row + 1
-        } else {
-            0
-        };
-        for row in start_row..self.rows {
-            for col in 0..self.cols {
-                *self.cell_mut(row, col) = Cell::default();
+    fn erase_in_line_from_start(&mut self) {
+        // EL1: erase from start of line through (and including) the cursor cell.
+        for col in 0..=self.cursor_col.min(self.cols.saturating_sub(1)) {
+            *self.cell_mut(self.cursor_row, col) = Cell::default();
+        }
+    }
+
+    fn erase_in_line_all(&mut self) {
+        for col in 0..self.cols {
+            *self.cell_mut(self.cursor_row, col) = Cell::default();
+        }
+    }
+
+    fn erase_in_display(&mut self, mode: u16) {
+        match mode {
+            0 => {
+                // ED0: cursor to end of screen.
+                self.erase_in_line_to_end();
+                for row in self.cursor_row + 1..self.rows {
+                    for col in 0..self.cols {
+                        *self.cell_mut(row, col) = Cell::default();
+                    }
+                }
+            }
+            1 => {
+                // ED1: start of screen through cursor.
+                for row in 0..self.cursor_row {
+                    for col in 0..self.cols {
+                        *self.cell_mut(row, col) = Cell::default();
+                    }
+                }
+                self.erase_in_line_from_start();
+            }
+            _ => {
+                // ED2: whole screen.
+                for row in 0..self.rows {
+                    for col in 0..self.cols {
+                        *self.cell_mut(row, col) = Cell::default();
+                    }
+                }
             }
         }
     }
@@ -242,15 +309,20 @@ impl Perform for Perf<'_> {
     fn execute(&mut self, byte: u8) {
         match byte {
             b'\n' | 0x0b | 0x0c => self.screen.newline(),
-            b'\r' => self.screen.cursor_col = 0,
+            b'\r' => {
+                self.screen.cursor_col = 0;
+                self.screen.wrap_pending = false;
+            }
             b'\x08' => {
                 if self.screen.cursor_col > 0 {
                     self.screen.cursor_col -= 1;
                 }
+                self.screen.wrap_pending = false;
             }
             b'\t' => {
                 let next = (self.screen.cursor_col + 8) & !7;
                 self.screen.cursor_col = next.min(self.screen.cols.saturating_sub(1));
+                self.screen.wrap_pending = false;
             }
             _ => {}
         }
@@ -267,41 +339,49 @@ impl Perform for Perf<'_> {
         let row = p0.unwrap_or(1).saturating_sub(1) as usize;
         let col = p1.unwrap_or(1).saturating_sub(1) as usize;
         match byte {
-            // CUU/CUD/CUF/CUB — cursor up/down/forward/back.
-            'A' => self.screen.cursor_row = self.screen.cursor_row.saturating_sub(n),
+            // CUU/CUD/CUF/CUB — cursor up/down/forward/back. All clear the
+            // deferred-wrap flag (the cursor is now explicitly positioned).
+            'A' => {
+                self.screen.cursor_row = self.screen.cursor_row.saturating_sub(n);
+                self.screen.wrap_pending = false;
+            }
             'B' => {
                 self.screen.cursor_row =
-                    (self.screen.cursor_row + n).min(self.screen.rows.saturating_sub(1))
+                    (self.screen.cursor_row + n).min(self.screen.rows.saturating_sub(1));
+                self.screen.wrap_pending = false;
             }
             'C' => {
                 self.screen.cursor_col =
-                    (self.screen.cursor_col + n).min(self.screen.cols.saturating_sub(1))
+                    (self.screen.cursor_col + n).min(self.screen.cols.saturating_sub(1));
+                self.screen.wrap_pending = false;
             }
-            'D' => self.screen.cursor_col = self.screen.cursor_col.saturating_sub(n),
+            'D' => {
+                self.screen.cursor_col = self.screen.cursor_col.saturating_sub(n);
+                self.screen.wrap_pending = false;
+            }
             // CHA — cursor horizontal absolute (column, 1-based).
-            'G' => self.screen.cursor_col = row.min(self.screen.cols.saturating_sub(1)),
+            'G' => {
+                self.screen.cursor_col = row.min(self.screen.cols.saturating_sub(1));
+                self.screen.wrap_pending = false;
+            }
             // VPA — vertical position absolute (line, 1-based).
-            'd' => self.screen.cursor_row = row.min(self.screen.rows.saturating_sub(1)),
+            'd' => {
+                self.screen.cursor_row = row.min(self.screen.rows.saturating_sub(1));
+                self.screen.wrap_pending = false;
+            }
             // CUP / HVP — cursor position (1-based).
             'H' | 'f' => {
                 self.screen.cursor_row = row.min(self.screen.rows.saturating_sub(1));
                 self.screen.cursor_col = col.min(self.screen.cols.saturating_sub(1));
+                self.screen.wrap_pending = false;
             }
             // ED — erase in display.
-            'J' => match p0.unwrap_or(0) {
-                0 => self.screen.erase_in_display(true),
-                1 => {
-                    // erase from start to cursor — approximate as a full clear;
-                    // precise-before-cursor is rarely needed for automation.
-                    self.screen.erase_in_display(false);
-                }
-                _ => self.screen.erase_in_display(false),
-            },
+            'J' => self.screen.erase_in_display(p0.unwrap_or(0)),
             // EL — erase in line.
             'K' => match p0.unwrap_or(0) {
-                0 => self.screen.erase_in_line(true),
-                1 => self.screen.erase_in_line(false),
-                2 => self.screen.erase_in_line(false),
+                0 => self.screen.erase_in_line_to_end(),
+                1 => self.screen.erase_in_line_from_start(),
+                2 => self.screen.erase_in_line_all(),
                 _ => {}
             },
             // SU — scroll up.
@@ -316,9 +396,16 @@ impl Perform for Perf<'_> {
 /// Apply a basic SGR parameter stream: styles + the 16-colour palette. The
 /// terminal model is a "pen" — attributes set here apply to every character
 /// written afterwards, not just the cell under the cursor.
+///
+/// 256-colour (`38;5;n` / `48;5;n`) and truecolor (`38;2;r;g;b` /
+/// `48;2;r;g;b`) sequences are recognised and consumed in full; their index is
+/// mapped onto the 16-colour palette when it falls in the ANSI range (so a
+/// rendered cell still carries a representative colour), otherwise the pen is
+/// left unchanged. This keeps the grid self-consistent instead of mis-parsing
+/// the colour payload as spurious bold/italic attributes.
 fn apply_sgr(screen: &mut Screen, params: &Params) {
-    let mut idx = 0;
     let flat: Vec<u16> = params.iter().flat_map(|p| p.iter().copied()).collect();
+    let mut idx = 0;
     while idx < flat.len() {
         match flat[idx] {
             0 => {
@@ -340,6 +427,36 @@ fn apply_sgr(screen: &mut Screen, params: &Params) {
             100..=107 => screen.pen_bg = (flat[idx] - 100 + 8) as u8,
             39 => screen.pen_fg = 7, // default fg
             49 => screen.pen_bg = 0, // default bg
+            38 | 48 => {
+                // Extended colour: `<38|48>;5;n` (256) or `<38|48>;2;r;g;b` (RGB).
+                let target_fg = flat[idx] == 38;
+                idx += 1;
+                if idx >= flat.len() {
+                    break;
+                }
+                match flat[idx] {
+                    5 => {
+                        // 256-colour: index 0..15 maps to the ANSI palette;
+                        // everything else is left as the current pen colour.
+                        idx += 1;
+                        if idx < flat.len() {
+                            let n = flat[idx];
+                            if n < 16 {
+                                if target_fg {
+                                    screen.pen_fg = n as u8;
+                                } else {
+                                    screen.pen_bg = n as u8;
+                                }
+                            }
+                        }
+                    }
+                    2 => {
+                        // truecolor r;g;b — consume all four (mode + 3 channels).
+                        idx += 3;
+                    }
+                    _ => {}
+                }
+            }
             _ => {}
         }
         idx += 1;
@@ -405,5 +522,58 @@ mod tests {
         assert_eq!(s.cell(0, 2).ch, '\0', "col 2 of row 0 should be empty");
         assert_eq!(s.cell(1, 0).ch, '中');
         assert!(s.cell(1, 1).wide_cont);
+    }
+
+    #[test]
+    fn full_line_wraps_instead_of_overwriting() {
+        // A line that fills the last column must wrap to the next line on the
+        // following character, not overwrite the last cell.
+        let mut s = Screen::new(3, 2);
+        s.feed("abcdef".as_bytes());
+        assert_eq!(s.cell(0, 0).ch, 'a');
+        assert_eq!(s.cell(0, 2).ch, 'c');
+        assert_eq!(s.cell(1, 0).ch, 'd');
+        assert_eq!(s.cell(1, 2).ch, 'f');
+    }
+
+    #[test]
+    fn zero_dimension_screen_does_not_panic() {
+        let mut s = Screen::new(0, 0);
+        s.feed("anything".as_bytes()); // must not index an empty grid
+        s.resize(2, 2);
+        s.feed("ab".as_bytes());
+        assert_eq!(s.cell(0, 0).ch, 'a');
+    }
+
+    #[test]
+    fn overwriting_a_wide_char_makes_the_new_char_visible() {
+        // '中' at cols 2..4, then move onto its continuation cell and write a
+        // narrow char — it must not stay hidden behind wide_cont.
+        let mut s = Screen::new(4, 1);
+        s.feed("ab中".as_bytes());
+        s.feed(b"\x1b[1;4Hc");
+        // The left half of the old wide char is blanked; 'c' is visible.
+        assert_eq!(s.cell(0, 2).ch, '\0');
+        assert_eq!(s.cell(0, 3).ch, 'c');
+        assert!(!s.cell(0, 3).wide_cont);
+    }
+
+    #[test]
+    fn sgr_256_colour_does_not_invent_styles() {
+        let mut s = Screen::new(4, 1);
+        s.feed(b"\x1b[38;5;1mR");
+        assert_eq!(s.cell(0, 0).fg, 1); // red
+        assert!(!s.cell(0, 0).bold, "256-colour must not set bold");
+        assert!(!s.cell(0, 0).italic, "256-colour must not set italic");
+    }
+
+    #[test]
+    fn sgr_truecolour_is_consumed_without_side_effects() {
+        let mut s = Screen::new(4, 1);
+        s.feed(b"\x1b[38;2;1;2;3mT\x1b[0mX");
+        // The RGB payload must not be read as styles; after reset, X is plain.
+        assert!(!s.cell(0, 0).bold);
+        assert_eq!(s.cell(0, 1).ch, 'X');
+        assert_eq!(s.cell(0, 1).fg, 7);
     }
 }
