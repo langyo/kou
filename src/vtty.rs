@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -27,12 +27,16 @@ pub struct VttySession {
     pub command: String,
     pub cols: u16,
     pub rows: u16,
-    pub alive: bool,
+    alive: Arc<AtomicBool>,
     screen: Arc<Mutex<Screen>>,
     pty: Arc<Mutex<Option<pty::Pty>>>,
 }
 
 impl VttySession {
+    pub fn alive(&self) -> bool {
+        self.alive.load(Ordering::SeqCst)
+    }
+
     /// Clone the current screen grid (snapshot).
     pub fn screen_snapshot(&self) -> Screen {
         // Tolerate a poisoned mutex (a panic during feed) rather than
@@ -89,14 +93,19 @@ impl VttyManager {
 
         let screen = Arc::new(Mutex::new(Screen::new(cols as usize, rows as usize)));
         let pty_arc = Arc::new(Mutex::new(Some(pty_handle)));
+        let alive = Arc::new(AtomicBool::new(true));
 
         // Reader pump: a dedicated OS thread reads PTY output and feeds the
         // screen. It extracts the reader from the shared pty once (so the pty
-        // lock isn't held across the blocking read loop).
+        // lock isn't held across the blocking read loop). When the loop exits
+        // (EOF / error) it sets `alive` to false so callers get a truthful
+        // view of the session state.
         {
             let screen = Arc::clone(&screen);
             let pty_arc = Arc::clone(&pty_arc);
+            let alive = Arc::clone(&alive);
             thread::spawn(move || {
+                let _guard = AliveGuard(alive);
                 let mut reader = {
                     let mut guard = match pty_arc.lock() {
                         Ok(g) => g,
@@ -135,7 +144,7 @@ impl VttyManager {
             command: command.to_string(),
             cols,
             rows,
-            alive: true,
+            alive,
             screen,
             pty: pty_arc,
         };
@@ -164,7 +173,7 @@ impl VttyManager {
             .lock()
             .await
             .iter()
-            .map(|(id, s)| (id.clone(), s.alive))
+            .map(|(id, s)| (id.clone(), s.alive()))
             .collect()
     }
 
@@ -234,6 +243,15 @@ impl VttyManager {
 impl Default for VttyManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Sets `alive` to `false` when dropped — ensures the session's alive flag
+/// reflects reality even if the reader thread panics or returns early.
+struct AliveGuard(Arc<AtomicBool>);
+impl Drop for AliveGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
     }
 }
 

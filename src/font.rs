@@ -218,7 +218,9 @@ pub fn resolve_family(family: FontFamily) -> Option<PathBuf> {
 
 #[cfg(feature = "font-fetch")]
 fn download(family: FontFamily, dest: &Path) -> anyhow::Result<()> {
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
+        eprintln!("[kou] TLS provider install failed (font fetch may not work): {e:?}");
+    }
     let timeout = std::env::var("KOU_DOWNLOAD_TIMEOUT_SECS")
         .ok()
         .and_then(|s| s.parse().ok())
