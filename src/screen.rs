@@ -44,7 +44,6 @@ pub fn char_width(ch: char) -> u16 {
     unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0) as u16
 }
 
-#[derive(Debug, Clone)]
 pub struct Screen {
     pub cols: usize,
     pub rows: usize,
@@ -64,6 +63,49 @@ pub struct Screen {
     /// printable character wraps to the next line before being drawn, instead
     /// of overwriting the last cell — matching real terminal behaviour.
     pub wrap_pending: bool,
+    parser: vte::Parser,
+}
+
+impl Clone for Screen {
+    fn clone(&self) -> Self {
+        Self {
+            cols: self.cols,
+            rows: self.rows,
+            cells: self.cells.clone(),
+            cursor_row: self.cursor_row,
+            cursor_col: self.cursor_col,
+            title: self.title.clone(),
+            alt_screen: self.alt_screen,
+            pen_fg: self.pen_fg,
+            pen_bg: self.pen_bg,
+            pen_bold: self.pen_bold,
+            pen_italic: self.pen_italic,
+            pen_underline: self.pen_underline,
+            wrap_pending: self.wrap_pending,
+            parser: vte::Parser::new(),
+        }
+    }
+}
+
+impl std::fmt::Debug for Screen {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Screen")
+            .field("cols", &self.cols)
+            .field("rows", &self.rows)
+            .field("cells", &self.cells)
+            .field("cursor_row", &self.cursor_row)
+            .field("cursor_col", &self.cursor_col)
+            .field("title", &self.title)
+            .field("alt_screen", &self.alt_screen)
+            .field("pen_fg", &self.pen_fg)
+            .field("pen_bg", &self.pen_bg)
+            .field("pen_bold", &self.pen_bold)
+            .field("pen_italic", &self.pen_italic)
+            .field("pen_underline", &self.pen_underline)
+            .field("wrap_pending", &self.wrap_pending)
+            .field("parser", &"<vte::Parser>")
+            .finish()
+    }
 }
 
 impl Screen {
@@ -82,6 +124,7 @@ impl Screen {
             pen_italic: false,
             pen_underline: false,
             wrap_pending: false,
+            parser: vte::Parser::new(),
         }
     }
 
@@ -128,11 +171,16 @@ impl Screen {
         if self.cols == 0 || self.rows == 0 {
             return; // No grid to write into — never index an empty `cells`.
         }
-        let mut parser = vte::Parser::new();
+        // Take the parser out of self so we can borrow screen mutably for Perf
+        // without a conflict. The parser is stateful; reuse it across feed()
+        // calls so partial escape sequences split across PTY read boundaries
+        // are assembled correctly.
+        let mut parser = std::mem::replace(&mut self.parser, vte::Parser::new());
         let mut perf = Perf { screen: self };
         for &b in data {
             parser.advance(&mut perf, b);
         }
+        self.parser = parser;
     }
 
     // ── primitive ops used by the performer ──────────────────────────────
@@ -565,6 +613,21 @@ mod tests {
         assert_eq!(s.cell(0, 0).fg, 1); // red
         assert!(!s.cell(0, 0).bold, "256-colour must not set bold");
         assert!(!s.cell(0, 0).italic, "256-colour must not set italic");
+    }
+
+    #[test]
+    fn partial_escape_across_feed_calls() {
+        // If a PTY read splits `\x1b[31mR` into two chunks, the parser must
+        // retain its state across feed() boundaries.
+        let mut s = Screen::new(10, 3);
+        s.feed(b"\x1b[3"); // incomplete CSI
+        s.feed(b"1mR");
+        assert_eq!(
+            s.cell(0, 0).fg,
+            1,
+            "should parse red SGR from split sequence"
+        );
+        assert_eq!(s.cell(0, 0).ch, 'R');
     }
 
     #[test]
