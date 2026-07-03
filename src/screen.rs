@@ -6,6 +6,7 @@
 //! and the 16-colour SGR palette the renderer draws with — instead of the
 //! placeholder "treat ESC as whitespace" pass from the early stub.
 
+use base64::Engine as _;
 use vte::{Params, Perform};
 
 #[derive(Debug, Clone)]
@@ -43,6 +44,23 @@ impl Default for Cell {
 fn apc_buf_has_start(buf: &[u8]) -> bool {
     buf.windows(3)
         .any(|w| w[0] == 0x1b && w[1] == b'_' && w[2] == b'G')
+}
+
+/// Parse an iTerm2 dimension from a `File=` key-value string.
+/// Looks for `key=Ncells` or `key=N` and returns `N`. Returns `None` for
+/// pixel or auto dimensions (the caller falls back to 1 cell).
+fn parse_iterm_dim(kv: &str, key: &str) -> Option<u32> {
+    let prefix = format!("{key}=");
+    kv.split(';')
+        .find_map(|pair| {
+            let pair = pair.trim();
+            let rest = pair.strip_prefix(&prefix)?;
+            if let Some(n) = rest.strip_suffix("cells") {
+                n.parse().ok()
+            } else {
+                None // px / auto / unknown — skip
+            }
+        })
 }
 
 /// Display width of `ch` on the terminal grid (1 or 2). CJK / full-width /
@@ -529,6 +547,47 @@ impl Perform for Perf<'_> {
             }
             _ => {}
         }
+    }
+
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
+        // iTerm2 inline image: ESC ] 1337 ; File=inline=1 ; width=Ncells ;
+        //                       height=Ncells : BASE64  ST/BEL
+        if params.first().map_or(true, |p| *p != b"1337") {
+            return;
+        }
+        // Reconstruct the body: join all params after the command with ';'.
+        let body: Vec<u8> = params[1..].join(&b';');
+        // The ':' separates key-value params from the base64 payload.
+        let Some(colon) = body.iter().position(|&b| b == b':') else {
+            return;
+        };
+        let kv = String::from_utf8_lossy(&body[..colon]);
+        let payload = &body[colon + 1..];
+        if !kv.contains("inline=1") {
+            return;
+        }
+        let cells_w = parse_iterm_dim(&kv, "width").unwrap_or(1);
+        let cells_h = parse_iterm_dim(&kv, "height").unwrap_or(1);
+        let Ok(data) = base64::engine::general_purpose::STANDARD.decode(payload) else {
+            return;
+        };
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static SEQ: AtomicU32 = AtomicU32::new(100_000);
+        let id = SEQ.fetch_add(1, Ordering::Relaxed);
+        self.screen.image_store.insert(
+            crate::graphics::InlineImage { id, data },
+        );
+        self.screen.image_store.place(
+            crate::graphics::Placement {
+                image_id: id,
+                row: self.screen.cursor_row,
+                col: self.screen.cursor_col,
+                pixel_w: 0,
+                pixel_h: 0,
+                cells_w,
+                cells_h,
+            },
+        );
     }
 
     fn csi_dispatch(&mut self, params: &Params, _intermediates: &[u8], _ignore: bool, byte: char) {
