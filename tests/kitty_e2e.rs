@@ -16,6 +16,26 @@ fn red_png() -> Vec<u8> {
     buf
 }
 
+/// Build a 128×128 noisy PNG (varies per-pixel so PNG can't compress it,
+/// producing a multi-KB base64 payload for split-feed testing).
+fn large_red_png() -> Vec<u8> {
+    use image::{ImageBuffer, Rgba, ImageEncoder};
+    let mut img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(128, 128);
+    for y in 0..128 {
+        for x in 0..128 {
+            let r = ((x as u32 * 7 + y as u32 * 13) % 256) as u8;
+            let g = ((x as u32 * 3 + y as u32 * 5) % 256) as u8;
+            let b = ((x as u32 * 11 + y as u32 * 17) % 256) as u8;
+            img[(x, y)] = Rgba([r, g, b, 255]);
+        }
+    }
+    let mut buf = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut buf)
+        .write_image(img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8)
+        .unwrap();
+    buf
+}
+
 #[test]
 fn kitty_apc_renders_visible_image() {
     let png = red_png();
@@ -130,4 +150,26 @@ fn iterm2_osc1337_renders_visible_image() {
     let pixel = img.get_pixel(cx, cy);
     assert!(pixel[0] > 200 && pixel[1] < 50 && pixel[2] < 50,
             "iTerm2 image region should be red, got {:?}", pixel);
+}
+
+#[test]
+fn iterm2_osc1337_split_across_feed() {
+    // Large iTerm2 OSC 1337 sequences get split by PTY reads. Verify
+    // the sliding apc_buf reassembles them across feed() boundaries.
+    // Use a 64×64 image for a naturally long base64 payload (no invalid
+    // padding from concatenation).
+    let png = large_red_png();
+    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &png);
+    let seq = format!(
+        "\x1b]1337;File=inline=1;width=8cells;height=8cells:{}\x07",
+        b64
+    );
+    assert!(seq.len() > 4000, "test needs a large OSC to exercise the buffer");
+    let mid = seq.len() / 2;
+    let mut screen = Screen::new(20, 10);
+    screen.feed(b"\x1b[3;4H");
+    screen.feed(&seq.as_bytes()[..mid]);
+    screen.feed(&seq.as_bytes()[mid..]);
+    let n = screen.image_store.placements().len();
+    assert!(n > 0, "split iTerm2 OSC should still produce a placement (got {n})");
 }

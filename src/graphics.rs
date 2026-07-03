@@ -217,6 +217,93 @@ impl InlineImageStore {
     }
 }
 
+
+
+/// Scan `data` for iTerm2 OSC 1337 inline-image sequences (`\x1b]1337;…\x07`
+/// and return each as `(start_byte, end_byte, body_bytes)`.  `body` is the
+/// content between `1337;` and the terminator (BEL or ST), i.e. the
+/// `File=…:BASE64` payload.
+pub fn extract_iterm_osc(data: &[u8]) -> Vec<(usize, usize, Vec<u8>)> {
+    let mut results = Vec::new();
+    let marker = b"\x1b]1337;";
+    let mut i = 0;
+    while i < data.len() {
+        if i + marker.len() <= data.len() && &data[i..i + marker.len()] == marker {
+            let payload_start = i + marker.len();
+            let mut j = payload_start;
+            while j < data.len() {
+                // BEL or ST (ESC \) terminates the OSC.
+                if data[j] == 0x07 {
+                    let body = data[payload_start..j].to_vec();
+                    results.push((i, j + 1, body));
+                    i = j + 1;
+                    break;
+                }
+                if j + 1 < data.len() && data[j] == 0x1b && data[j + 1] == b'\\' {
+                    let body = data[payload_start..j].to_vec();
+                    results.push((i, j + 2, body));
+                    i = j + 2;
+                    break;
+                }
+                j += 1;
+            }
+            if j >= data.len() {
+                break;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    results
+}
+
+/// Decode an iTerm2 OSC 1337 body (`File=inline=1;width=Ncells;…:BASE64`)
+/// and insert the image into `store` at (`cursor_row`, `cursor_col`).
+pub fn process_iterm_osc(
+    body: &[u8],
+    cursor_row: usize,
+    cursor_col: usize,
+    store: &mut InlineImageStore,
+) {
+    let colon = match body.iter().position(|&b| b == b':') {
+        Some(c) => c,
+        None => return,
+    };
+    let kv = String::from_utf8_lossy(&body[..colon]);
+    let payload = &body[colon + 1..];
+    if !kv.contains("inline=1") {
+        return;
+    }
+    let cells_w = parse_iterm_kv(&kv, "width").unwrap_or(1);
+    let cells_h = parse_iterm_kv(&kv, "height").unwrap_or(1);
+    let Ok(data) = B64.decode(payload) else {
+        return;
+    };
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static SEQ: AtomicU32 = AtomicU32::new(100_000);
+    let id = SEQ.fetch_add(1, Ordering::Relaxed);
+    store.insert(InlineImage { id, data });
+    store.place(Placement {
+        image_id: id,
+        row: cursor_row,
+        col: cursor_col,
+        pixel_w: 0,
+        pixel_h: 0,
+        cells_w,
+        cells_h,
+    });
+}
+
+/// Parse `key=Ncells` from an iTerm2 key-value section.
+fn parse_iterm_kv(kv: &str, key: &str) -> Option<u32> {
+    let prefix = format!("{key}=");
+    kv.split(';').find_map(|pair| {
+        let rest = pair.trim().strip_prefix(&prefix)?;
+        rest.strip_suffix("cells")?.parse().ok()
+    })
+}
+
+
 /// Partial-state accumulator for chunked kitty APC transfers.
 /// Each entry tracks the assembled base64 payload, optional dimension hints,
 /// and whether a display (`a=t` / `a=T`) was requested on any chunk.
