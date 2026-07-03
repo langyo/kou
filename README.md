@@ -26,6 +26,8 @@
 
 </div>
 
+<p align="center"><img src="res/themed_terminal_campbell.png" alt="kou terminal rendering" /></p>
+
 ## Introduction
 
 kou is a standalone virtual-terminal engine — PTY management, a VT100/ANSI
