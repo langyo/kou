@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>Virtual terminal automation — PTY + a VT100 screen + build-time font fetching + inband graphics protocols</strong></p>
+<p align="center"><strong>Virtual terminal engine</strong></p>
 
 <div align="center">
 

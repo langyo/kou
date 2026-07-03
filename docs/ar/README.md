@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>أتمتة الطرفية الافتراضية — PTY + شاشة VT100 + جلب الخطوط أثناء البناء + بروتوكولات رسومية داخل النطاق</strong></p>
+<p align="center"><strong>محرك طرفية افتراضي</strong></p>
 
 <div align="center">
 

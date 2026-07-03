@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>虚拟终端自动化——PTY + VT100 屏幕 + 构建时字体预取 + 带内图形协议</strong></p>
+<p align="center"><strong>虚拟终端引擎</strong></p>
 
 <div align="center">
 

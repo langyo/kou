@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>虛擬終端機自動化——PTY + VT100 螢幕 + 建構時字型預取 + 帶內圖形協定</strong></p>
+<p align="center"><strong>虛擬終端引擎</strong></p>
 
 <div align="center">
 

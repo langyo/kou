@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>Автоматизация виртуального терминала — PTY + экран VT100 + получение шрифтов во время сборки + встроенные графические протоколы</strong></p>
+<p align="center"><strong>Движок виртуального терминала</strong></p>
 
 <div align="center">
 

@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>Automatización de terminal virtual — PTY + una pantalla VT100 + obtención de fuentes en tiempo de compilación + protocolos gráficos in-band</strong></p>
+<p align="center"><strong>Motor de terminal virtual</strong></p>
 
 <div align="center">
 

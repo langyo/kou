@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>仮想端末の自動化 —— PTY + VT100 画面 + ビルド時フォント取得 + インバンドグラフィックプロトコル</strong></p>
+<p align="center"><strong>仮想端末エンジン</strong></p>
 
 <div align="center">
 

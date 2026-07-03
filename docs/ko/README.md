@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>가상 터미널 자동화 — PTY + VT100 화면 + 빌드 시간 폰트 가져오기 + 인밴드 그래픽 프로토콜</strong></p>
+<p align="center"><strong>가상 터미널 엔진</strong></p>
 
 <div align="center">
 
