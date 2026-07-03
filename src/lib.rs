@@ -29,7 +29,10 @@ pub mod screen;
 pub mod vtty;
 
 pub use font::{FontCache, FontFamily, FontSet, locate_system_fonts};
-pub use graphics::GraphicsProtocol;
+pub use graphics::{
+    GraphicsProtocol, InlineImage, InlineImageStore, KittyDecodeState, Placement,
+    extract_kitty_apcs, process_kitty_apc,
+};
 pub use read::{ReadStyle, read, read_default};
 pub use render::{
     THEMES, Theme, render_graphics, render_png, render_png_supersampled, theme_by_name,

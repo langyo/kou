@@ -582,6 +582,38 @@ fn render_buffer(
         }
     }
 
+    // ── inline images (kitty / iTerm2 / Sixel) ──────────────────
+    for p in screen.image_store.placements() {
+        if let Some(inline) = screen.image_store.image(p.image_id) {
+            let Ok(decoded) = image::load_from_memory(&inline.data) else {
+                continue;
+            };
+            let target_w = (p.cells_w * cell_w) as u32;
+            let target_h = (p.cells_h * cell_h) as u32;
+            if target_w == 0 || target_h == 0 {
+                continue;
+            }
+            let x = (p.col as u32) * cell_w;
+            let y = (p.row as u32) * cell_h;
+            if x >= width || y >= height {
+                continue;
+            }
+            // Scale the source image to match the cells_x_cells block it
+            // was requested to fill (honouring the kitty c=/r= size hints).
+            let resized = if decoded.width() == target_w && decoded.height() == target_h {
+                decoded
+            } else {
+                image::DynamicImage::ImageRgba8(image::imageops::resize(
+                    &decoded,
+                    target_w,
+                    target_h,
+                    image::imageops::FilterType::Lanczos3,
+                ))
+            };
+            image::imageops::overlay(&mut img, &resized, x as i64, y as i64);
+        }
+    }
+
     // The `font_px` arg is only used to size the fallback block path; the real
     // metrics come from the loaded FontCache.
     let _ = font_px;

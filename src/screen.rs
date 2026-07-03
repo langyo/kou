@@ -67,6 +67,11 @@ pub struct Screen {
     /// [`SCROLLBACK_MAX`]. Stored as rendered text (no cell attributes) which
     /// is all the MCP "scrollback" tool and `find_text` need.
     pub scrollback: Vec<String>,
+    /// In-band graphics protocol image store (kitty APC, iTerm2 OSC 1337,
+    /// Sixel DCS). Images are placed at the cursor position in effect when
+    /// the escape sequence is received.
+    pub image_store: crate::graphics::InlineImageStore,
+    pub(crate) kitty_state: crate::graphics::KittyDecodeState,
     parser: vte::Parser,
 }
 
@@ -90,6 +95,8 @@ impl Clone for Screen {
             pen_underline: self.pen_underline,
             wrap_pending: self.wrap_pending,
             scrollback: self.scrollback.clone(),
+            image_store: self.image_store.clone(),
+            kitty_state: self.kitty_state.clone(),
             parser: vte::Parser::new(),
         }
     }
@@ -112,6 +119,7 @@ impl std::fmt::Debug for Screen {
             .field("pen_underline", &self.pen_underline)
             .field("wrap_pending", &self.wrap_pending)
             .field("scrollback_len", &self.scrollback.len())
+            .field("images", &self.image_store.placements().len())
             .field("parser", &"<vte::Parser>")
             .finish()
     }
@@ -134,6 +142,8 @@ impl Screen {
             pen_underline: false,
             wrap_pending: false,
             scrollback: Vec::new(),
+            image_store: crate::graphics::InlineImageStore::new(),
+            kitty_state: crate::graphics::KittyDecodeState::default(),
             parser: vte::Parser::new(),
         }
     }
@@ -260,15 +270,25 @@ impl Screen {
         }
     }
 
-    /// Feed a raw PTY byte stream through the vte parser.
+    /// Feed a raw PTY byte stream through the vte parser, after extracting
+    /// in-band graphics protocols (kitty APC) so images are placed inline.
     pub fn feed(&mut self, data: &[u8]) {
         if self.cols == 0 || self.rows == 0 {
-            return; // No grid to write into — never index an empty `cells`.
+            return;
         }
-        // Take the parser out of self so we can borrow screen mutably for Perf
-        // without a conflict. The parser is stateful; reuse it across feed()
-        // calls so partial escape sequences split across PTY read boundaries
-        // are assembled correctly.
+        // Extract kitty APC graphics BEFORE vte parsing so the cursor position
+        // used for placement reflects the state from prior feed() calls.
+        let apcs = crate::graphics::extract_kitty_apcs(data);
+        for (_, _, control, payload) in &apcs {
+            crate::graphics::process_kitty_apc(
+                &mut self.kitty_state,
+                control,
+                payload,
+                self.cursor_row,
+                self.cursor_col,
+                &mut self.image_store,
+            );
+        }
         let mut parser = std::mem::replace(&mut self.parser, vte::Parser::new());
         let mut perf = Perf { screen: self };
         for &b in data {
