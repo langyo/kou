@@ -588,9 +588,10 @@ fn render_buffer(
             let Ok(decoded) = image::load_from_memory(&inline.data) else {
                 continue;
             };
-            let target_w = (p.cells_w * cell_w) as u32;
-            let target_h = (p.cells_h * cell_h) as u32;
-            if target_w == 0 || target_h == 0 {
+            // The cell region the kitty protocol asked us to fill.
+            let region_w = (p.cells_w * cell_w) as u32;
+            let region_h = (p.cells_h * cell_h) as u32;
+            if region_w == 0 || region_h == 0 {
                 continue;
             }
             let x = (p.col as u32) * cell_w;
@@ -598,19 +599,30 @@ fn render_buffer(
             if x >= width || y >= height {
                 continue;
             }
-            // Scale the source image to match the cells_x_cells block it
-            // was requested to fill (honouring the kitty c=/r= size hints).
-            let resized = if decoded.width() == target_w && decoded.height() == target_h {
+            // Contain-fit: scale the source image to the largest size that
+            // fits inside the cell region WITHOUT distorting the aspect ratio,
+            // then centre it. Terminal cells are not square (e.g. 48×64 px),
+            // so c=10,r=10 is not a square pixel area — a naive stretch makes
+            // logos look squished.
+            let src_w = decoded.width();
+            let src_h = decoded.height();
+            let scale = (region_w as f64 / src_w as f64)
+                .min(region_h as f64 / src_h as f64);
+            let fit_w = ((src_w as f64) * scale).round().max(1.0) as u32;
+            let fit_h = ((src_h as f64) * scale).round().max(1.0) as u32;
+            let off_x = x as i64 + ((region_w - fit_w) / 2) as i64;
+            let off_y = y as i64 + ((region_h - fit_h) / 2) as i64;
+            let resized = if src_w == fit_w && src_h == fit_h {
                 decoded
             } else {
                 image::DynamicImage::ImageRgba8(image::imageops::resize(
                     &decoded,
-                    target_w,
-                    target_h,
+                    fit_w,
+                    fit_h,
                     image::imageops::FilterType::Lanczos3,
                 ))
             };
-            image::imageops::overlay(&mut img, &resized, x as i64, y as i64);
+            image::imageops::overlay(&mut img, &resized, off_x, off_y);
         }
     }
 
