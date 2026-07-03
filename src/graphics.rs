@@ -220,6 +220,7 @@ impl InlineImageStore {
     pub fn image(&self, id: u32) -> Option<&InlineImage> {
         self.images.get(&id)
     }
+}
 
 // ── sixel (DCS) ──────────────────────────────────────────────────
 
@@ -331,6 +332,7 @@ pub fn process_sixel_dcs(
 }
 
 #[cfg(test)]
+impl InlineImageStore {
     pub fn len(&self) -> usize {
         self.placements.len()
     }
