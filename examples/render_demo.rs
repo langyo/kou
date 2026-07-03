@@ -5,7 +5,7 @@
 //!   /tmp/kou_render_demo.png      (3× supersampled — the crisp one)
 //!   /tmp/kou_render_demo_1x.png   (1× reference)
 
-use kou::{FontCache, FontSet, Screen, render_png_supersampled};
+use kou::{FontCache, FontSet, Screen, render_png_supersampled, theme_by_name};
 
 fn main() -> anyhow::Result<()> {
     let paths = locate_system_fonts();
@@ -13,7 +13,8 @@ fn main() -> anyhow::Result<()> {
     // 3× supersampled render (load the cache at 3× the output px).
     let fonts_hi = FontCache::from_paths(&paths, 16.0 * 3.0);
     let screen = sample_screen();
-    let png = render_png_supersampled(&screen, &fonts_hi, 16.0, 3)?;
+    let theme = theme_by_name("Campbell");
+    let png = render_png_supersampled(&screen, &fonts_hi, 16.0, 3, theme)?;
     std::fs::write("/tmp/kou_render_demo.png", &png)?;
     println!(
         "wrote /tmp/kou_render_demo.png ({} bytes, {} faces, sample=SystemError)",
@@ -23,7 +24,7 @@ fn main() -> anyhow::Result<()> {
 
     // 1× reference for comparison.
     let fonts_lo = FontCache::from_paths(&paths, 16.0);
-    let png1 = render_png_supersampled(&screen, &fonts_lo, 16.0, 1)?;
+    let png1 = render_png_supersampled(&screen, &fonts_lo, 16.0, 1, theme)?;
     std::fs::write("/tmp/kou_render_demo_1x.png", &png1)?;
     println!("wrote /tmp/kou_render_demo_1x.png ({} bytes)", png1.len());
 

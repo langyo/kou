@@ -31,6 +31,8 @@ pub mod vtty;
 pub use font::{FontCache, FontFamily, FontSet};
 pub use graphics::GraphicsProtocol;
 pub use read::{ReadStyle, read, read_default};
-pub use render::{render_graphics, render_png, render_png_supersampled};
+pub use render::{
+    THEMES, Theme, render_graphics, render_png, render_png_supersampled, theme_by_name,
+};
 pub use screen::Screen;
 pub use vtty::{SessionInfo, VttyManager, VttySession, VttySessionId, encode_input, parse_keys};
