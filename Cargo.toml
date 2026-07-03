@@ -9,7 +9,10 @@ readme = "README.md"
 description = "Virtual terminal engine — PTY + VT100 + image protocols"
 repository = "https://github.com/celestia-island/kou"
 keywords = ["terminal", "vtty", "pty", "vt100", "automation"]
-categories = ["development-tools", "os"]
+categories = ["command-line-interface", "os::unix-apis", "multimedia::images"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [lib]
 name = "kou"
