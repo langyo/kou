@@ -123,8 +123,14 @@ async fn scrollback_captures_scrolled_lines() {
     );
 
     let sb = mgr.scrollback(&id).await.unwrap();
-    assert!(sb.contains("l0"), "scrollback should retain early lines: {sb}");
-    assert!(sb.contains("l4"), "scrollback+screen should include current: {sb}");
+    assert!(
+        sb.contains("l0"),
+        "scrollback should retain early lines: {sb}"
+    );
+    assert!(
+        sb.contains("l4"),
+        "scrollback+screen should include current: {sb}"
+    );
     let _ = mgr.kill(&id).await;
 }
 
