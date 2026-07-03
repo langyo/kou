@@ -103,24 +103,17 @@ if let Some(escape) = frame {
 
 | الكتابة | الخط |
 |---------|------|
-| Latin | Fira Code |
-| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
-| Arabic | Noto Naskh Arabic |
-| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
-| Thai (ไทย) | Noto Sans Thai |
+| Latin | [Fira Code](https://github.com/tonsky/FiraCode) |
+| CJK (中文 · 日本語 · 한국어) | [Source Han Sans SC](https://github.com/adobe-fonts/source-han-sans) (思源黑体) |
 
-تجاوز أي عائلة عند وقت البناء باستخدام `KOU_FONT_PRIMARY` / `KOU_FONT_CJK` /
-`KOU_FONT_ARABIC` / `KOU_FONT_DEVANAGARI` / `KOU_FONT_THAI`، أو ثبّت ملفات محلية
-عبر `KOU_FONT_*_PATH`. يمكن توجيه التنزيلات عبر وسيط HTTP(S) عبر
-`KOU_DOWNLOAD_PROXY` (يُمرَّر مباشرة إلى reqwest).
+تجاوز أي عائلة عند وقت البناء باستخدام `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`،
+أو ثبّت ملفات محلية عبر `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`. يمكن توجيه
+التنزيلات عبر وسيط HTTP(S) عبر `KOU_DOWNLOAD_PROXY` (يُمرَّر مباشرة إلى reqwest).
 
 | متغير البيئة | الغرض |
 |--------------|-------|
 | `KOU_FONT_PRIMARY` | تجاوز عائلة الخط اللاتيني. |
 | `KOU_FONT_CJK` | تجاوز / تعطيل خط CJK (`none` للتعطيل). |
-| `KOU_FONT_ARABIC` | تجاوز / تعطيل خط العربي. |
-| `KOU_FONT_DEVANAGARI` | تجاوز / تعطيل خط الديفاناغارية. |
-| `KOU_FONT_THAI` | تجاوز / تعطيل خط التايلاندية. |
 | `KOU_FONT_MIRROR` | استبدال مضيف التنزيل بمرآة. |
 | `KOU_DOWNLOAD_PROXY` | توجيه التنزيلات عبر وسيط HTTP(S) (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | مهلة لكل طلب (افتراضي 120). |

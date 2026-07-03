@@ -105,24 +105,18 @@ kou pre-downloads one font per script into a shared cache at build time:
 
 | Script | Font |
 |--------|------|
-| Latin | Fira Code |
-| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
-| Arabic | Noto Naskh Arabic |
-| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
-| Thai (ไทย) | Noto Sans Thai |
+| Latin | [Fira Code](https://github.com/tonsky/FiraCode) |
+| CJK (中文 · 日本語 · 한국어) | [Source Han Sans SC](https://github.com/adobe-fonts/source-han-sans) (思源黑体) |
 
-Override any family at build time with `KOU_FONT_PRIMARY` / `KOU_FONT_CJK` /
-`KOU_FONT_ARABIC` / `KOU_FONT_DEVANAGARI` / `KOU_FONT_THAI`, or pin local files
-with `KOU_FONT_*_PATH`. Downloads can be routed through an HTTP(S) proxy via
-`KOU_DOWNLOAD_PROXY` (passed directly to reqwest).
+Override any family at build time with `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`, or
+pin local files with `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`. Downloads can be
+routed through an HTTP(S) proxy via `KOU_DOWNLOAD_PROXY` (passed directly to
+reqwest).
 
 | Env | Purpose |
 |-----|---------|
 | `KOU_FONT_PRIMARY` | Override the Latin font family. |
 | `KOU_FONT_CJK` | Override / disable the CJK font (`none` to disable). |
-| `KOU_FONT_ARABIC` | Override / disable the Arabic font. |
-| `KOU_FONT_DEVANAGARI` | Override / disable the Devanagari font. |
-| `KOU_FONT_THAI` | Override / disable the Thai font. |
 | `KOU_FONT_MIRROR` | Substitute the download host with a mirror. |
 | `KOU_DOWNLOAD_PROXY` | Route downloads through an HTTP(S) proxy (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Per-request timeout (default 120). |

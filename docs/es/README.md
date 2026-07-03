@@ -107,25 +107,18 @@ kou pre-descarga una fuente por escritura en una caché compartida en tiempo de 
 
 | Escritura | Fuente |
 |-----------|--------|
-| Latin | Fira Code |
-| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
-| Arabic | Noto Naskh Arabic |
-| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
-| Thai (ไทย) | Noto Sans Thai |
+| Latin | [Fira Code](https://github.com/tonsky/FiraCode) |
+| CJK (中文 · 日本語 · 한국어) | [Source Han Sans SC](https://github.com/adobe-fonts/source-han-sans) (思源黑体) |
 
 Sobrescribe cualquier familia en tiempo de compilación con `KOU_FONT_PRIMARY` /
-`KOU_FONT_CJK` / `KOU_FONT_ARABIC` / `KOU_FONT_DEVANAGARI` /
-`KOU_FONT_THAI`, o fija archivos locales con `KOU_FONT_*_PATH`. Las descargas
-pueden enrutarse a través de un proxy HTTP(S) vía `KOU_DOWNLOAD_PROXY` (pasado
-directamente a reqwest).
+`KOU_FONT_CJK`, o fija archivos locales con `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`.
+Las descargas pueden enrutarse a través de un proxy HTTP(S) vía
+`KOU_DOWNLOAD_PROXY` (pasado directamente a reqwest).
 
 | Env | Propósito |
 |-----|-----------|
 | `KOU_FONT_PRIMARY` | Sobrescribe la familia de fuentes latinas. |
 | `KOU_FONT_CJK` | Sobrescribe / deshabilita la fuente CJK (`none` para deshabilitar). |
-| `KOU_FONT_ARABIC` | Sobrescribe / deshabilita la fuente árabe. |
-| `KOU_FONT_DEVANAGARI` | Sobrescribe / deshabilita la fuente Devanagari. |
-| `KOU_FONT_THAI` | Sobrescribe / deshabilita la fuente tailandesa. |
 | `KOU_FONT_MIRROR` | Sustituye el host de descarga por un mirror. |
 | `KOU_DOWNLOAD_PROXY` | Enruta las descargas a través de un proxy HTTP(S) (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Tiempo de espera por solicitud (predeterminado 120). |

@@ -8,10 +8,10 @@
 //! restrictive networks.
 //!
 //! A [`FontSet`] pairs a primary monospace face (Latin) with an ordered list
-//! of fallback faces (CJK, Arabic, Devanagari, Thai). [`FontCache::load`]
-//! reads them into `ab_glyph` font vectors and [`FontCache::glyph_for`] picks
-//! the first face that actually contains a given codepoint — so a single
-//! render can mix Latin, CJK, Arabic and more without tofu.
+//! of fallback faces (CJK by default). [`FontCache::load`] reads them into
+//! `ab_glyph` font vectors and [`FontCache::glyph_for`] picks the first face
+//! that actually contains a given codepoint — so a single render can mix
+//! Latin and CJK without tofu.
 //!
 //! Resolution order:
 //! 1. Explicit file paths — `KOU_FONT_PATH` (primary) and `KOU_FONT_*_PATH`.
@@ -19,8 +19,7 @@
 //! 3. A runtime download (the `font-fetch` feature) from the registry.
 //!
 //! Knobs: `KOU_FONT_MIRROR`, `KOU_DOWNLOAD_PROXY`, `KOU_DOWNLOAD_TIMEOUT_SECS`,
-//! `KOU_SKIP_FONT_FETCH`, `KOU_FONT_PRIMARY`, `KOU_FONT_CJK`,
-//! `KOU_FONT_ARABIC`, `KOU_FONT_DEVANAGARI`, `KOU_FONT_THAI`.
+//! `KOU_SKIP_FONT_FETCH`, `KOU_FONT_PRIMARY`, `KOU_FONT_CJK`.
 
 use std::path::{Path, PathBuf};
 
@@ -39,12 +38,6 @@ pub enum FontFamily {
     SarasaMonoSC,
     /// Smiley Sans (得意黑) — CJK display face.
     SmileySans,
-    /// Noto Naskh Arabic — Arabic script.
-    NotoNaskhArabic,
-    /// Noto Sans Devanagari — Devanagari script (Hindi, Marathi, …).
-    NotoSansDevanagari,
-    /// Noto Sans Thai — Thai script.
-    NotoSansThai,
 }
 
 impl FontFamily {
@@ -75,42 +68,6 @@ impl FontFamily {
         }
     }
 
-    /// The family selected for the Arabic fallback slot.
-    pub fn arabic_from_env() -> Option<Self> {
-        match std::env::var("KOU_FONT_ARABIC")
-            .ok()
-            .map(|s| s.trim().to_ascii_lowercase())
-            .as_deref()
-        {
-            Some("none") | Some("off") => None,
-            _ => Some(FontFamily::NotoNaskhArabic),
-        }
-    }
-
-    /// The family selected for the Devanagari fallback slot.
-    pub fn devanagari_from_env() -> Option<Self> {
-        match std::env::var("KOU_FONT_DEVANAGARI")
-            .ok()
-            .map(|s| s.trim().to_ascii_lowercase())
-            .as_deref()
-        {
-            Some("none") | Some("off") => None,
-            _ => Some(FontFamily::NotoSansDevanagari),
-        }
-    }
-
-    /// The family selected for the Thai fallback slot.
-    pub fn thai_from_env() -> Option<Self> {
-        match std::env::var("KOU_FONT_THAI")
-            .ok()
-            .map(|s| s.trim().to_ascii_lowercase())
-            .as_deref()
-        {
-            Some("none") | Some("off") => None,
-            _ => Some(FontFamily::NotoSansThai),
-        }
-    }
-
     pub fn label(self) -> &'static str {
         match self {
             FontFamily::FiraCode => "fira-code",
@@ -118,9 +75,6 @@ impl FontFamily {
             FontFamily::SourceHanSansSC => "source-han-sans-sc",
             FontFamily::SarasaMonoSC => "sarasa-mono-sc",
             FontFamily::SmileySans => "smiley-sans",
-            FontFamily::NotoNaskhArabic => "noto-naskh-arabic",
-            FontFamily::NotoSansDevanagari => "noto-sans-devanagari",
-            FontFamily::NotoSansThai => "noto-sans-thai",
         }
     }
 
@@ -132,9 +86,6 @@ impl FontFamily {
             FontFamily::SourceHanSansSC => "SourceHanSansSC-Regular.otf",
             FontFamily::SarasaMonoSC => "SarasaMonoSC-Regular.ttf",
             FontFamily::SmileySans => "SmileySans-Regular.ttf",
-            FontFamily::NotoNaskhArabic => "NotoNaskhArabic-Regular.ttf",
-            FontFamily::NotoSansDevanagari => "NotoSansDevanagari-Regular.ttf",
-            FontFamily::NotoSansThai => "NotoSansThai-Regular.ttf",
         }
     }
 
@@ -145,9 +96,6 @@ impl FontFamily {
             FontFamily::SourceHanSansSC
             | FontFamily::SarasaMonoSC
             | FontFamily::SmileySans => Some("KOU_FONT_CJK_PATH"),
-            FontFamily::NotoNaskhArabic => Some("KOU_FONT_ARABIC_PATH"),
-            FontFamily::NotoSansDevanagari => Some("KOU_FONT_DEVANAGARI_PATH"),
-            FontFamily::NotoSansThai => Some("KOU_FONT_THAI_PATH"),
         }
     }
 
@@ -170,15 +118,6 @@ impl FontFamily {
             }
             FontFamily::SmileySans => {
                 "https://cdn.jsdelivr.net/gh/atelier-anchor/smiley-sans@2.0.1/fonts/SmileySans-Regular.ttf"
-            }
-            FontFamily::NotoNaskhArabic => {
-                "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoNaskhArabic/NotoNaskhArabic-Regular.ttf"
-            }
-            FontFamily::NotoSansDevanagari => {
-                "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf"
-            }
-            FontFamily::NotoSansThai => {
-                "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansThai/NotoSansThai-Regular.ttf"
             }
         };
         if let Ok(mirror) = std::env::var("KOU_FONT_MIRROR") {
@@ -207,15 +146,6 @@ impl FontSet {
         let mut fallbacks = Vec::new();
         if let Some(cjk) = FontFamily::cjk_from_env() {
             fallbacks.push(cjk);
-        }
-        if let Some(ar) = FontFamily::arabic_from_env() {
-            fallbacks.push(ar);
-        }
-        if let Some(dev) = FontFamily::devanagari_from_env() {
-            fallbacks.push(dev);
-        }
-        if let Some(thai) = FontFamily::thai_from_env() {
-            fallbacks.push(thai);
         }
         FontSet {
             primary: FontFamily::primary_from_env(),
@@ -692,9 +622,6 @@ mod tests {
             FontFamily::SourceHanSansSC,
             FontFamily::SarasaMonoSC,
             FontFamily::SmileySans,
-            FontFamily::NotoNaskhArabic,
-            FontFamily::NotoSansDevanagari,
-            FontFamily::NotoSansThai,
         ]
         .iter()
         .map(|f| f.cache_name())

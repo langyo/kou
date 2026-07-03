@@ -102,24 +102,17 @@ kou 会在构建时为每种文字各预下载一个字体到共享缓存中：
 
 | 文字 | 字体 |
 |------|------|
-| Latin | Fira Code |
-| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
-| Arabic | Noto Naskh Arabic |
-| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
-| Thai (ไทย) | Noto Sans Thai |
+| Latin | [Fira Code](https://github.com/tonsky/FiraCode) |
+| CJK (中文 · 日本語 · 한국어) | [Source Han Sans SC](https://github.com/adobe-fonts/source-han-sans) (思源黑体) |
 
-在构建时通过 `KOU_FONT_PRIMARY` / `KOU_FONT_CJK` / `KOU_FONT_ARABIC` /
-`KOU_FONT_DEVANAGARI` / `KOU_FONT_THAI` 覆盖任意字体族，或通过
-`KOU_FONT_*_PATH` 指定本地文件。下载可经由 `KOU_DOWNLOAD_PROXY`（直接传给
-reqwest）通过 HTTP(S) 代理路由。
+在构建时通过 `KOU_FONT_PRIMARY` / `KOU_FONT_CJK` 覆盖任意字体族，或通过
+`KOU_FONT_PATH` / `KOU_FONT_CJK_PATH` 指定本地文件。下载可经由
+`KOU_DOWNLOAD_PROXY`（直接传给 reqwest）通过 HTTP(S) 代理路由。
 
 | 环境变量 | 用途 |
 |---------|------|
 | `KOU_FONT_PRIMARY` | 覆盖 Latin 字体族。 |
 | `KOU_FONT_CJK` | 覆盖 / 禁用 CJK 字体（`none` 为禁用）。 |
-| `KOU_FONT_ARABIC` | 覆盖 / 禁用阿拉伯文字体。 |
-| `KOU_FONT_DEVANAGARI` | 覆盖 / 禁用天城文字体。 |
-| `KOU_FONT_THAI` | 覆盖 / 禁用泰文字体。 |
 | `KOU_FONT_MIRROR` | 将下载主机替换为镜像源。 |
 | `KOU_DOWNLOAD_PROXY` | 通过 HTTP(S) 代理路由下载（reqwest）。 |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | 单次请求超时时间（默认 120）。 |

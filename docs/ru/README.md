@@ -107,25 +107,18 @@ kou предварительно загружает по одному шрифт
 
 | Письменность | Шрифт |
 |--------------|-------|
-| Latin | Fira Code |
-| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
-| Arabic | Noto Naskh Arabic |
-| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
-| Thai (ไทย) | Noto Sans Thai |
+| Latin | [Fira Code](https://github.com/tonsky/FiraCode) |
+| CJK (中文 · 日本語 · 한국어) | [Source Han Sans SC](https://github.com/adobe-fonts/source-han-sans) (思源黑体) |
 
 Переопределяйте любое семейство во время сборки с помощью `KOU_FONT_PRIMARY` /
-`KOU_FONT_CJK` / `KOU_FONT_ARABIC` / `KOU_FONT_DEVANAGARI` /
-`KOU_FONT_THAI` или фиксируйте локальные файлы через `KOU_FONT_*_PATH`. Загрузки
-можно направлять через HTTP(S) прокси через `KOU_DOWNLOAD_PROXY` (передаётся
-напрямую в reqwest).
+`KOU_FONT_CJK` или фиксируйте локальные файлы через `KOU_FONT_PATH` /
+`KOU_FONT_CJK_PATH`. Загрузки можно направлять через HTTP(S) прокси через
+`KOU_DOWNLOAD_PROXY` (передаётся напрямую в reqwest).
 
 | Переменная | Назначение |
 |------------|------------|
 | `KOU_FONT_PRIMARY` | Переопределяет семейство латинских шрифтов. |
 | `KOU_FONT_CJK` | Переопределить / отключить шрифт CJK (`none` для отключения). |
-| `KOU_FONT_ARABIC` | Переопределить / отключить арабский шрифт. |
-| `KOU_FONT_DEVANAGARI` | Переопределить / отключить шрифт деванагари. |
-| `KOU_FONT_THAI` | Переопределить / отключить тайский шрифт. |
 | `KOU_FONT_MIRROR` | Заменить хост загрузки на зеркало. |
 | `KOU_DOWNLOAD_PROXY` | Направить загрузки через HTTP(S) прокси (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Таймаут одного запроса (по умолчанию 120). |

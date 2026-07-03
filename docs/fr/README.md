@@ -106,25 +106,18 @@ kou pré-télécharge une police par écriture dans un cache partagé à la comp
 
 | Écriture | Police |
 |----------|--------|
-| Latin | Fira Code |
-| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
-| Arabic | Noto Naskh Arabic |
-| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
-| Thai (ไทย) | Noto Sans Thai |
+| Latin | [Fira Code](https://github.com/tonsky/FiraCode) |
+| CJK (中文 · 日本語 · 한국어) | [Source Han Sans SC](https://github.com/adobe-fonts/source-han-sans) (思源黑体) |
 
 Surchargez n'importe quelle famille à la compilation avec `KOU_FONT_PRIMARY` /
-`KOU_FONT_CJK` / `KOU_FONT_ARABIC` / `KOU_FONT_DEVANAGARI` /
-`KOU_FONT_THAI`, ou épinglez des fichiers locaux avec `KOU_FONT_*_PATH`. Les
-téléchargements peuvent être acheminés via un proxy HTTP(S) via
-`KOU_DOWNLOAD_PROXY` (passé directement à reqwest).
+`KOU_FONT_CJK`, ou épinglez des fichiers locaux avec `KOU_FONT_PATH` /
+`KOU_FONT_CJK_PATH`. Les téléchargements peuvent être acheminés via un proxy
+HTTP(S) via `KOU_DOWNLOAD_PROXY` (passé directement à reqwest).
 
 | Env | Rôle |
 |-----|------|
 | `KOU_FONT_PRIMARY` | Surcharge la famille de polices latines. |
 | `KOU_FONT_CJK` | Surcharge / désactive la police CJK (`none` pour désactiver). |
-| `KOU_FONT_ARABIC` | Surcharge / désactive la police arabe. |
-| `KOU_FONT_DEVANAGARI` | Surcharge / désactive la police Devanagari. |
-| `KOU_FONT_THAI` | Surcharge / désactive la police thaï. |
 | `KOU_FONT_MIRROR` | Remplace l'hôte de téléchargement par un miroir. |
 | `KOU_DOWNLOAD_PROXY` | Achemine les téléchargements via un proxy HTTP(S) (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Délai d'expiration par requête (par défaut 120). |

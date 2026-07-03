@@ -106,25 +106,18 @@ kou는 스크립트당 하나의 폰트를 빌드 시간에 공유 캐시로 미
 
 | 스크립트 | 폰트 |
 |----------|------|
-| Latin | Fira Code |
-| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
-| Arabic | Noto Naskh Arabic |
-| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
-| Thai (ไทย) | Noto Sans Thai |
+| Latin | [Fira Code](https://github.com/tonsky/FiraCode) |
+| CJK (中文 · 日本語 · 한국어) | [Source Han Sans SC](https://github.com/adobe-fonts/source-han-sans) (思源黑体) |
 
-`KOU_FONT_PRIMARY` / `KOU_FONT_CJK` / `KOU_FONT_ARABIC` /
-`KOU_FONT_DEVANAGARI` / `KOU_FONT_THAI`로 빌드 시간에 패밀리를 재정의하거나,
-`KOU_FONT_*_PATH`로 로컬 파일을 고정할 수 있습니다. 다운로드는
-`KOU_DOWNLOAD_PROXY` (reqwest에 직접 전달)를 통해 HTTP(S) 프록시 경로로
-라우팅할 수 있습니다.
+`KOU_FONT_PRIMARY` / `KOU_FONT_CJK`로 빌드 시간에 패밀리를 재정의하거나,
+`KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`로 로컬 파일을 고정할 수 있습니다.
+다운로드는 `KOU_DOWNLOAD_PROXY` (reqwest에 직접 전달)를 통해 HTTP(S)
+프록시 경로로 라우팅할 수 있습니다.
 
 | 환경 변수 | 용도 |
 |-----|---------|
 | `KOU_FONT_PRIMARY` | 라틴 폰트 패밀리를 재정의합니다. |
 | `KOU_FONT_CJK` | CJK 폰트를 재정의 / 비활성화합니다 (`none`으로 비활성화). |
-| `KOU_FONT_ARABIC` | 아랍어 폰트를 재정의 / 비활성화합니다. |
-| `KOU_FONT_DEVANAGARI` | 데바나가리 폰트를 재정의 / 비활성화합니다. |
-| `KOU_FONT_THAI` | 태국어 폰트를 재정의 / 비활성화합니다. |
 | `KOU_FONT_MIRROR` | 다운로드 호스트를 미러로 대체합니다. |
 | `KOU_DOWNLOAD_PROXY` | 다운로드를 HTTP(S) 프록시를 통해 라우팅합니다 (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | 요청별 타임아웃 (기본값 120). |
