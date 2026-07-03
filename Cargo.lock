@@ -2949,12 +2949,52 @@ name = "evernight"
 version = "0.1.0"
 
 [[patch.unused]]
-name = "arona"
+name = "hikari-animation"
 version = "0.1.0"
 
 [[patch.unused]]
-name = "malkuth"
+name = "hikari-components"
+version = "0.2.7"
+
+[[patch.unused]]
+name = "hikari-icons"
 version = "0.1.0"
+
+[[patch.unused]]
+name = "hikari-palette"
+version = "0.2.7"
+
+[[patch.unused]]
+name = "hikari-theme"
+version = "0.2.7"
+
+[[patch.unused]]
+name = "tairitsu"
+version = "0.5.13"
+
+[[patch.unused]]
+name = "tairitsu-hooks"
+version = "0.5.13"
+
+[[patch.unused]]
+name = "tairitsu-macros"
+version = "0.5.13"
+
+[[patch.unused]]
+name = "tairitsu-ssr"
+version = "0.5.13"
+
+[[patch.unused]]
+name = "tairitsu-style"
+version = "0.5.13"
+
+[[patch.unused]]
+name = "tairitsu-vdom"
+version = "0.5.13"
+
+[[patch.unused]]
+name = "tairitsu-web"
+version = "0.5.13"
 
 [[patch.unused]]
 name = "aoba"
@@ -3005,52 +3045,12 @@ name = "tairitsu-vdom"
 version = "0.5.13"
 
 [[patch.unused]]
-name = "tairitsu"
-version = "0.5.13"
-
-[[patch.unused]]
-name = "tairitsu-hooks"
-version = "0.5.13"
-
-[[patch.unused]]
-name = "tairitsu-macros"
-version = "0.5.13"
-
-[[patch.unused]]
-name = "tairitsu-ssr"
-version = "0.5.13"
-
-[[patch.unused]]
-name = "tairitsu-style"
-version = "0.5.13"
-
-[[patch.unused]]
-name = "tairitsu-vdom"
-version = "0.5.13"
-
-[[patch.unused]]
-name = "tairitsu-web"
-version = "0.5.13"
-
-[[patch.unused]]
-name = "hikari-animation"
+name = "arona"
 version = "0.1.0"
 
 [[patch.unused]]
-name = "hikari-components"
-version = "0.2.7"
-
-[[patch.unused]]
-name = "hikari-icons"
+name = "malkuth"
 version = "0.1.0"
-
-[[patch.unused]]
-name = "hikari-palette"
-version = "0.2.7"
-
-[[patch.unused]]
-name = "hikari-theme"
-version = "0.2.7"
 
 [[patch.unused]]
 name = "hifumi"
