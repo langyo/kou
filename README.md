@@ -131,9 +131,6 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
 ```
 
-## License
-
-SySL-1.0 (Synthetic Source License). See [LICENSE](./LICENSE).
 
 <details>
 <summary>Screenshots</summary>
@@ -141,3 +138,7 @@ SySL-1.0 (Synthetic Source License). See [LICENSE](./LICENSE).
 <p align="center"><img src="res/themed_terminal_campbell.png" alt="kou snapshot" height="400" /></p>
 
 </details>
+
+## License
+
+SySL-1.0 (Synthetic Source License). See [LICENSE](./LICENSE).

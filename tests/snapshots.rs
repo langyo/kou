@@ -34,7 +34,7 @@ fn sgr(params: &str, text: &str) -> String {
 
 #[test]
 fn kou_themed_terminal_campbell() {
-    let mut sc = Screen::new(58, 18);
+    let mut sc = Screen::new(65, 18);
     sc.feed(format!("\x1b[1;37m\x1b[44m\x1b[K  kou — vtty engine  \x1b[0m\n").as_bytes());
     sc.feed("\n".as_bytes());
     sc.feed(format!("  {}\n", sgr("1", "Protocol Support")).as_bytes());
@@ -62,7 +62,7 @@ fn kou_themed_terminal_campbell() {
 
 #[test]
 fn kou_themed_terminal_solarized() {
-    let mut sc = Screen::new(58, 18);
+    let mut sc = Screen::new(65, 18);
     sc.feed(format!("\x1b[1;37m\x1b[44m\x1b[K  kou — vtty engine  \x1b[0m\n").as_bytes());
     sc.feed("\n".as_bytes());
     sc.feed(format!("  {}\n", sgr("1", "Protocol Support")).as_bytes());
@@ -88,7 +88,7 @@ fn kou_themed_terminal_solarized() {
 
 #[test]
 fn seia_search_results() {
-    let mut sc = Screen::new(65, 22);
+    let mut sc = Screen::new(68, 22);
     sc.feed("\x1b[1;37m\x1b[44m\x1b[K  seia — multi-engine web search  \x1b[0m\n".as_bytes());
     sc.feed("\n".as_bytes());
     sc.feed("  \x1b[1m$\x1b[0m seia search \"rust async patterns\" --engine duckduckgo\n".as_bytes());
@@ -118,7 +118,7 @@ fn seia_search_results() {
 
 #[test]
 fn shirabe_debug_server() {
-    let mut sc = Screen::new(58, 22);
+    let mut sc = Screen::new(68, 22);
     sc.feed("\x1b[1;37m\x1b[44m\x1b[K  shirabe — headless browser automation  \x1b[0m\n".as_bytes());
     sc.feed("\n".as_bytes());
     sc.feed("  \x1b[1m$\x1b[0m shirabe serve --port 3001\n".as_bytes());
