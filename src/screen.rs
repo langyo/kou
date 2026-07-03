@@ -72,6 +72,10 @@ pub struct Screen {
     /// the escape sequence is received.
     pub image_store: crate::graphics::InlineImageStore,
     pub(crate) kitty_state: crate::graphics::KittyDecodeState,
+    /// Sliding buffer for cross-feed APC reassembly. When a kitty APC spans
+    /// multiple PTY read() calls, the first feed stores the partial data
+    /// here; subsequent feeds prepend it before extraction.
+    pub(crate) apc_buf: Vec<u8>,
     parser: vte::Parser,
 }
 
@@ -97,6 +101,7 @@ impl Clone for Screen {
             scrollback: self.scrollback.clone(),
             image_store: self.image_store.clone(),
             kitty_state: self.kitty_state.clone(),
+            apc_buf: self.apc_buf.clone(),
             parser: vte::Parser::new(),
         }
     }
@@ -144,6 +149,7 @@ impl Screen {
             scrollback: Vec::new(),
             image_store: crate::graphics::InlineImageStore::new(),
             kitty_state: crate::graphics::KittyDecodeState::default(),
+            apc_buf: Vec::new(),
             parser: vte::Parser::new(),
         }
     }
@@ -270,16 +276,22 @@ impl Screen {
         }
     }
 
-    /// Feed a raw PTY byte stream through the vte parser, after extracting
-    /// in-band graphics protocols (kitty APC) so images are placed inline.
+    /// Feed a raw PTY byte stream. Kitty APC inline-graphics are extracted
+    /// before vte parsing. A sliding `apc_buf` reassembles APCs that span
+    /// multiple feed() calls (the PTY read can split a large image across
+    /// several reads).
     pub fn feed(&mut self, data: &[u8]) {
         if self.cols == 0 || self.rows == 0 {
             return;
         }
-        // Extract kitty APC graphics BEFORE vte parsing so the cursor position
-        // used for placement reflects the state from prior feed() calls.
-        let apcs = crate::graphics::extract_kitty_apcs(data);
-        for (_, _, control, payload) in &apcs {
+        // Append new data to the cross-feed buffer so a kitty APC split
+        // across consecutive feed() calls can be reassembled.
+        self.apc_buf.extend_from_slice(data);
+
+        // Extract complete APCs, keeping tabs on how many bytes have been consumed.
+        let apcs = crate::graphics::extract_kitty_apcs(&self.apc_buf);
+        let mut consumed = 0usize;
+        for (_, end, control, payload) in &apcs {
             crate::graphics::process_kitty_apc(
                 &mut self.kitty_state,
                 control,
@@ -288,7 +300,18 @@ impl Screen {
                 self.cursor_col,
                 &mut self.image_store,
             );
+            consumed = consumed.max(*end);
         }
+        // Drop the processed prefix — leave only the unprocessed tail
+        // (partial APC or non-APC bytes). Bound the buffer so a
+        // runaway stream without an ST terminator doesn't grow forever.
+        let cap = 256 * 1024;
+        if consumed > 0 {
+            self.apc_buf.drain(..consumed);
+        } else if self.apc_buf.len() > cap {
+            self.apc_buf.clear();
+        }
+
         let mut parser = std::mem::replace(&mut self.parser, vte::Parser::new());
         let mut perf = Perf { screen: self };
         for &b in data {
