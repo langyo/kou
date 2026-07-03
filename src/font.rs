@@ -381,6 +381,216 @@ fn push_face(out: &mut Vec<PxScaleFont<FontVec>>, path: &Path, px: f32) {
     }
 }
 
+// ── system font discovery ─────────────────────────────
+
+/// Paths that may contain system-installed fonts (checked in order).
+fn font_search_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    // XDG / traditional Linux paths.
+    dirs.push(PathBuf::from("/usr/share/fonts"));
+    dirs.push(PathBuf::from("/usr/local/share/fonts"));
+    if let Ok(home) = std::env::var("HOME") {
+        dirs.push(PathBuf::from(home.as_str()).join(".local/share/fonts"));
+        dirs.push(PathBuf::from(home.as_str()).join(".fonts"));
+    }
+    // macOS.
+    if cfg!(target_os = "macos") {
+        dirs.push(PathBuf::from("/System/Library/Fonts"));
+        dirs.push(PathBuf::from("/Library/Fonts"));
+    }
+    // Windows.
+    if cfg!(target_os = "windows") {
+        if let Ok(windir) = std::env::var("WINDIR") {
+            dirs.push(PathBuf::from(windir).join("Fonts"));
+        }
+    }
+    dirs
+}
+
+/// Candidate monospace filenames — tried in each directory until one exists.
+const MONO_CANDIDATES: &[&str] = &[
+    "DejaVuSansMono.ttf",
+    "LiberationMono-Regular.ttf",
+    "LiberationMono-R.ttf",
+    "NotoSansMono-Regular.ttf",
+    "FiraCode-Regular.ttf",
+    "FiraMono-Regular.ttf",
+    "JetBrainsMono-Regular.ttf",
+    "JetBrainsMonoNL-Regular.ttf",
+    "Hack-Regular.ttf",
+    "SourceCodePro-Regular.ttf",
+    "UbuntuMono-R.ttf",
+    "UbuntuMono-Regular.ttf",
+    "Courier_Prime.ttf",
+    "consola.ttf",
+    "cour.ttf",
+    "lucon.ttf",
+    "Menlo.ttc",
+];
+
+/// Candidate CJK fallback filenames.
+const CJK_CANDIDATES: &[&str] = &[
+    "NotoSansCJK-Regular.ttc",
+    "NotoSansSC-Regular.otf",
+    "NotoSansSC-Regular.ttf",
+    "NotoSansTC-Regular.otf",
+    "NotoSansJP-Regular.otf",
+    "SourceHanSansCN-Regular.otf",
+    "SourceHanSansSC-Regular.otf",
+    "SarasaMonoSC-Regular.ttf",
+    "SmileySans-Regular.ttf",
+    "WQYMicroHei.ttc",
+    "msyh.ttc",
+    "SimHei.ttf",
+];
+
+/// Find the first existing path for each candidate in `search_dirs`.
+fn find_in_dirs(candidates: &[&str], dirs: &[PathBuf]) -> Option<PathBuf> {
+    for name in candidates {
+        for dir in dirs {
+            let p = dir.join(name);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+/// Discover a local monospace face + an optional CJK fallback from the operating
+/// system's font directories (no network). Suitable as a zero-config fallback
+/// when `KOU_FONT_PATH` isn't set and no kou cache exists. Pair with
+/// [`FontCache::from_paths`].
+pub fn locate_system_fonts() -> Vec<PathBuf> {
+    let dirs = font_search_dirs();
+    let mut out = Vec::new();
+    if let Some(path) = find_in_dirs(MONO_CANDIDATES, &dirs) {
+        out.push(path);
+    }
+    if let Some(path) = find_in_dirs(CJK_CANDIDATES, &dirs) {
+        out.push(path);
+    }
+    out
+}
+
+// ── async font fetch (for tokio runtimes) ─────────────
+
+#[cfg(feature = "font-fetch")]
+async fn download_async(family: FontFamily, dest: &Path) -> anyhow::Result<()> {
+    if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
+        eprintln!("[kou] TLS provider install failed (font fetch may not work): {e:?}");
+    }
+    let timeout = std::env::var("KOU_DOWNLOAD_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .filter(|&n: &u64| n > 0)
+        .map(std::time::Duration::from_secs)
+        .unwrap_or(std::time::Duration::from_secs(120));
+    let mut builder = reqwest::Client::builder().timeout(timeout);
+    if let Ok(proxy) = std::env::var("KOU_DOWNLOAD_PROXY") {
+        let proxy = proxy.trim();
+        if !proxy.is_empty() {
+            builder = builder.proxy(
+                reqwest::Proxy::all(proxy)
+                    .map_err(|e| anyhow::anyhow!("invalid KOU_DOWNLOAD_PROXY {proxy:?}: {e}"))?,
+            );
+        }
+    }
+    let client = builder.build()?;
+    let url = family.source_url();
+    eprintln!("[kou] downloading {} (once, then cached)", url);
+    let bytes = client
+        .get(&url)
+        .header("User-Agent", "kou")
+        .send()
+        .await
+        .and_then(|r| r.error_for_status())?
+        .bytes()
+        .await?;
+    let dest = dest.to_path_buf();
+    let parent = dest.parent().map(|p| p.to_path_buf());
+    // Offload the sync file I/O so we don't stall the async runtime.
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        if let Some(p) = &parent {
+            std::fs::create_dir_all(p)?;
+        }
+        let tmp = dest.with_extension("download");
+        std::fs::write(&tmp, &bytes)?;
+        std::fs::rename(&tmp, &dest)?;
+        Ok(())
+    })
+    .await??;
+    Ok(())
+}
+
+#[cfg(feature = "font-fetch")]
+async fn resolve_family_async(family: FontFamily) -> Option<PathBuf> {
+    // 1. Explicit path override.
+    if family == FontFamily::primary_from_env() {
+        if let Ok(p) = std::env::var("KOU_FONT_PATH") {
+            let path = PathBuf::from(&p);
+            if path.exists() {
+                return Some(path);
+            }
+        }
+    }
+    if family == FontFamily::SarasaMonoSC
+        || matches!(family, FontFamily::SourceHanSansSC | FontFamily::SmileySans)
+    {
+        if let Ok(p) = std::env::var("KOU_FONT_CJK_PATH") {
+            let path = PathBuf::from(&p);
+            if path.exists() {
+                return Some(path);
+            }
+        }
+    }
+
+    // 2. Previously cached.
+    let cached = cache_root().join(family.cache_name());
+    if cached.exists() {
+        return Some(cached);
+    }
+
+    // 3. Async runtime fetch.
+    if std::env::var_os("KOU_SKIP_FONT_FETCH").is_none() {
+        match download_async(family, &cached).await {
+            Ok(()) => return Some(cached),
+            Err(e) => {
+                eprintln!("[kou] font fetch for {} failed: {e}", family.label());
+            }
+        }
+    }
+    None
+}
+
+impl FontCache {
+    /// Async variant of [`load`](FontCache::load) — uses `reqwest`'s non-blocking
+    /// client so it is safe to call inside a Tokio runtime. Falls back through
+    /// explicit paths, the kou cache, and an HTTP download just like `load`.
+    #[cfg(feature = "font-fetch")]
+    pub async fn load_async(set: &FontSet, px: f32) -> Self {
+        let mut faces = Vec::new();
+        if let Some(path) = resolve_family_async(set.primary).await {
+            push_face(&mut faces, &path, px);
+        }
+        if let Some(cjk) = set.cjk {
+            if let Some(path) = resolve_family_async(cjk).await {
+                push_face(&mut faces, &path, px);
+            }
+        }
+        FontCache { faces }
+    }
+
+    /// Build from system-installed fonts discovered under standard OS font
+    /// directories (monospace + optional CJK). Zero-config, zero-network.
+    /// Pair with [`locate_system_fonts`].
+    pub fn from_system_fonts(px: f32) -> Self {
+        let paths = locate_system_fonts();
+        let refs: Vec<&Path> = paths.iter().map(|p| p.as_path()).collect();
+        FontCache::from_paths(&refs, px)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

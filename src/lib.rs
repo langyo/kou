@@ -28,7 +28,7 @@ pub mod render;
 pub mod screen;
 pub mod vtty;
 
-pub use font::{FontCache, FontFamily, FontSet};
+pub use font::{FontCache, FontFamily, FontSet, locate_system_fonts};
 pub use graphics::GraphicsProtocol;
 pub use read::{ReadStyle, read, read_default};
 pub use render::{
