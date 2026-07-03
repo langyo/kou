@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>Virtual terminal automation — PTY + a real VT100 screen + ort-style fonts + inband graphics protocols.</strong></p>
+<p align="center"><strong>Virtual terminal automation — PTY + a real VT100 screen + build-time font fetching + inband graphics protocols</strong></p>
 
 <div align="center">
 
@@ -38,11 +38,11 @@ Three things set it apart from a bare PTY wrapper:
 - **A real screen.** The byte stream is run through the [`vte`](https://crates.io/crates/vte)
   parser, so CSI cursor moves, erase, scroll and the SGR 16-colour palette are
   honoured — not the "drop ESC on the floor" stub of the early prototype.
-- **ort-style fonts.** kou does not ship fonts; it fetches a curated family
-  (Fira Code / JetBrains Mono for Latin; Source Han Sans / Sarasa Mono / Smiley
-  Sans for CJK) into a shared cache on first use, with mirror/proxy knobs for
-  restrictive networks. Glyphs are rasterised with `ab_glyph`, Latin before CJK,
-  so a single render mixes scripts without tofu.
+- **Build-time font fetching.** kou does not ship fonts; it fetches a curated
+  family (Fira Code / JetBrains Mono for Latin; Source Han Sans / Sarasa Mono /
+  Smiley Sans for CJK) into a shared cache on first use, with mirror/proxy knobs
+  for restrictive networks. Glyphs are rasterised with `ab_glyph`, Latin before
+  CJK, so a single render mixes scripts without tofu.
 - **Inband graphics.** A frame can be rasterised to PNG, or described to a
   capable terminal through the kitty (`kitty2`) or iTerm2 graphics protocol — so
   wezterm / kitty / iTerm2 / Ghostty render the real pixels inline.
@@ -101,7 +101,16 @@ if let Some(escape) = frame {
 
 ## Fonts & fetching
 
-Pick the primary / CJK family with `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`, or pin
+kou does not bundle fonts — it fetches a curated family into a shared cache
+at build time, with mirror/proxy knobs for restrictive networks. Each script
+selects **one** font; the defaults and alternatives are:
+
+| Script | Default | Alternatives |
+|--------|---------|-------------|
+| Latin | Fira Code | JetBrains Mono |
+| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+
+Pick the family with `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`, or pin
 files with `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`. Resolution order:
 explicit path → shared cache → runtime download (the `font-fetch` feature,
 enabled by default).
@@ -109,7 +118,7 @@ enabled by default).
 | Env | Purpose |
 |-----|---------|
 | `KOU_FONT_PRIMARY` | `fira-code` (default) / `jetbrains-mono` |
-| `KOU_FONT_CJK` | `sarasa` (default) / `sourcehansans` / `smileysans` / `none` |
+| `KOU_FONT_CJK` | `sourcehansans` (default) / `sarasa` / `smileysans` / `none` |
 | `KOU_FONT_MIRROR` | Substitute the GitHub / jsDelivr host with a mirror. |
 | `KOU_DOWNLOAD_PROXY` | Route font downloads through an http/https/socks proxy. |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Per-request timeout (default 120). |

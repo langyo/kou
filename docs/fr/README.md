@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>Automatisation de terminal virtuel — PTY + un vrai écran VT100 + polices façon ort + protocoles graphiques in-band.</strong></p>
+<p align="center"><strong>Automatisation de terminal virtuel — PTY + un vrai écran VT100 + récupération des polices à la compilation + protocoles graphiques in-band</strong></p>
 
 <div align="center">
 
@@ -39,7 +39,7 @@ Trois choses le distinguent d'un simple wrapper PTY :
   [`vte`](https://crates.io/crates/vte), donc les déplacements de curseur CSI,
   l'effacement, le défilement et la palette SGR 16 couleurs sont respectés —
   pas le bouchon « jeter ESC au sol » du premier prototype.
-- **Polices façon ort.** kou n'embarque pas de polices ; il récupère une famille
+- **Récupération des polices à la compilation.** kou n'embarque pas de polices ; il récupère une famille
   sélectionnée (Fira Code / JetBrains Mono pour le latin ; Source Han Sans /
   Sarasa Mono / Smiley Sans pour le CJK) dans un cache partagé à la première
   utilisation, avec des options miroir/proxy pour les réseaux restrictifs. Les
@@ -103,6 +103,16 @@ if let Some(escape) = frame {
 
 ## Polices et récupération
 
+kou ne regroupe pas de polices — il récupère une famille sélectionnée dans un
+cache partagé à la compilation, avec des options miroir/proxy pour les réseaux
+restrictifs. Chaque écriture sélectionne **une** police ; les valeurs par défaut
+et alternatives sont :
+
+| Écriture | Défaut | Alternatives |
+|----------|--------|--------------|
+| Latin | Fira Code | JetBrains Mono |
+| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+
 Choisissez la famille principale / CJK avec `KOU_FONT_PRIMARY` /
 `KOU_FONT_CJK`, ou épinglez des fichiers avec `KOU_FONT_PATH` /
 `KOU_FONT_CJK_PATH`. Ordre de résolution : chemin explicite → cache partagé →
@@ -112,7 +122,7 @@ défaut).
 | Env | Rôle |
 |-----|------|
 | `KOU_FONT_PRIMARY` | `fira-code` (par défaut) / `jetbrains-mono` |
-| `KOU_FONT_CJK` | `sarasa` (par défaut) / `sourcehansans` / `smileysans` / `none` |
+| `KOU_FONT_CJK` | `sourcehansans` (par défaut) / `sarasa` / `smileysans` / `none` |
 | `KOU_FONT_MIRROR` | Remplace l'hôte GitHub / jsDelivr par un miroir. |
 | `KOU_DOWNLOAD_PROXY` | Achemine les téléchargements de polices via un proxy http/https/socks. |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Délai d'expiration par requête (par défaut 120). |

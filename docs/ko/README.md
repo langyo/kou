@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>가상 터미널 자동화 — PTY + 진짜 VT100 화면 + ort 스타일 폰트 + 인밴드 그래픽 프로토콜.</strong></p>
+<p align="center"><strong>가상 터미널 자동화 — PTY + 진짜 VT100 화면 + 빌드 시간 폰트 가져오기 + 인밴드 그래픽 프로토콜</strong></p>
 
 <div align="center">
 
@@ -38,7 +38,7 @@ tairitsu 패키저에서 추출한 vtty 코어를 독립된 라이브러리와 C
 - **진짜 화면.** 바이트 스트림은 [`vte`](https://crates.io/crates/vte)
   파서를 통해 처리되므로, CSI 커서 이동, 지우기, 스크롤 및 SGR 16색 팔레트가
   모두 지원됩니다 — 초기 프로토타입처럼 ESC를 무시하는 수준이 아닙니다.
-- **ort 스타일 폰트.** kou는 폰트를 내장하지 않습니다. 처음 사용할 때
+- **빌드 시간 폰트 가져오기.** kou는 폰트를 내장하지 않습니다. 처음 사용할 때
   큐레이션된 폰트 패밀리(라틴: Fira Code / JetBrains Mono; CJK:
   Source Han Sans / Sarasa Mono / Smiley Sans)를 공유 캐시로
   가져오며, 제한된 네트워크 환경을 위한 미러/프록시 설정을 제공합니다.
@@ -103,6 +103,13 @@ if let Some(escape) = frame {
 
 ## 폰트 및 가져오기
 
+kou는 폰트를 내장하지 않습니다 — 빌드 시간에 큐레이션된 폰트 패밀리를 공유 캐시로 가져오며, 제한된 네트워크 환경을 위한 미러/프록시 설정을 제공합니다. 각 스크립트는 **하나**의 폰트를 선택합니다. 기본값과 대안은 다음과 같습니다:
+
+| 스크립트 | 기본값 | 대안 |
+|----------|--------|------|
+| Latin | Fira Code | JetBrains Mono |
+| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+
 `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`로 기본 / CJK 폰트 패밀리를 선택하거나,
 `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`로 파일을 직접 지정할 수 있습니다.
 우선순위: 명시적 경로 → 공유 캐시 → 런타임 다운로드
@@ -111,7 +118,7 @@ if let Some(escape) = frame {
 | 환경 변수 | 용도 |
 |-----|---------|
 | `KOU_FONT_PRIMARY` | `fira-code` (기본값) / `jetbrains-mono` |
-| `KOU_FONT_CJK` | `sarasa` (기본값) / `sourcehansans` / `smileysans` / `none` |
+| `KOU_FONT_CJK` | `sourcehansans` (기본값) / `sarasa` / `smileysans` / `none` |
 | `KOU_FONT_MIRROR` | GitHub / jsDelivr 호스트를 미러로 대체. |
 | `KOU_DOWNLOAD_PROXY` | 폰트 다운로드를 http/https/socks 프록시를 통해 라우팅. |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | 요청별 타임아웃 (기본값 120). |

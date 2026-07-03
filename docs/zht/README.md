@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>虛擬終端機自動化——PTY + 真正的 VT100 螢幕 + ort 風格字型 + 帶內圖形協定。</strong></p>
+<p align="center"><strong>虛擬終端機自動化——PTY + 真正的 VT100 螢幕 + 建構時字型預取 + 帶內圖形協定</strong></p>
 
 <div align="center">
 
@@ -33,7 +33,7 @@ kou 是一個獨立的虛擬終端機引擎——PTY 管理、真正的 VT100/AN
 以下三點讓它不同於一個簡陋的 PTY 封裝：
 
 - **真正的螢幕。** 位元組串流會經過 [`vte`](https://crates.io/crates/vte) 解析器處理，因此 CSI 游標移動、清除、捲動以及 SGR 16 色調色盤都會被正確處理——不再是早期原型中那種「直接丟掉 ESC」的陽春做法。
-- **ort 風格字型。** kou 本身不內嵌字型；首次使用時會將一套精選字型家族（拉丁字型為 Fira Code / JetBrains Mono；CJK 字型為思源黑體 / 更紗黑體 / 得意黑）擷取至共用快取中，並提供鏡像站/代理伺服器選項以適應受限網路環境。字形由 `ab_glyph` 進行點陣化，先處理拉丁字元再處理 CJK 字元，因此單次渲染即可混合多種書寫系統而不會出現缺字（tofu）。
+- **建構時字型預取。** kou 本身不內嵌字型；首次使用時會將一套精選字型家族（拉丁字型為 Fira Code / JetBrains Mono；CJK 字型為思源黑體 / 更紗黑體 / 得意黑）擷取至共用快取中，並提供鏡像站/代理伺服器選項以適應受限網路環境。字形由 `ab_glyph` 進行點陣化，先處理拉丁字元再處理 CJK 字元，因此單次渲染即可混合多種書寫系統而不會出現缺字（tofu）。
 - **帶內圖形。** 畫面可以點陣化為 PNG，或透過 kitty（`kitty2`）或 iTerm2 圖形協定描述給支援的終端機——因此 wezterm / kitty / iTerm2 / Ghostty 可以直接在行內顯示真實像素。
 
 ## 快速入門
@@ -90,12 +90,19 @@ if let Some(escape) = frame {
 
 ## 字型與擷取
 
+kou 不內嵌字型——它會在建構時將精選字型家族擷取至共用快取中，並提供鏡像站/代理伺服器選項以適應受限網路環境。每種書寫系統各選擇**一種**字型；預設值與備選如下：
+
+| 文字 | 預設 | 備選 |
+|------|------|------|
+| Latin | Fira Code | JetBrains Mono |
+| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+
 使用 `KOU_FONT_PRIMARY` / `KOU_FONT_CJK` 選擇主要字型 / CJK 字型家族，或使用 `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH` 指定字型檔案。解析順序：明確路徑 → 共用快取 → 執行期下載（`font-fetch` 功能，預設啟用）。
 
 | 環境變數 | 用途 |
 |-----|---------|
 | `KOU_FONT_PRIMARY` | `fira-code`（預設）/ `jetbrains-mono` |
-| `KOU_FONT_CJK` | `sarasa`（預設）/ `sourcehansans` / `smileysans` / `none` |
+| `KOU_FONT_CJK` | `sourcehansans`（預設）/ `sarasa` / `smileysans` / `none` |
 | `KOU_FONT_MIRROR` | 以鏡像站取代 GitHub / jsDelivr 主機。 |
 | `KOU_DOWNLOAD_PROXY` | 透過 http/https/socks 代理伺服器進行字型下載。 |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | 每個請求的逾時時間（預設 120 秒）。 |

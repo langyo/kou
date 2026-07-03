@@ -6,7 +6,7 @@ rust-version = "1.85"
 authors = ["langyo <langyo.china@gmail.com>"]
 license-file = "LICENSE"
 readme = "README.md"
-description = "Virtual terminal automation — PTY + VT100 + image protocols + ort-style fonts"
+description = "Virtual terminal automation — PTY + VT100 + image protocols + build-time font fetching"
 repository = "https://github.com/celestia-island/kou"
 keywords = ["terminal", "vtty", "pty", "vt100", "automation"]
 categories = ["development-tools", "os"]
@@ -38,7 +38,7 @@ ab_glyph = "^0.2"
 base64 = "^0.22"
 # East-Asian character width — CJK glyphs are double-wide on the terminal grid.
 unicode-width = "^0.2"
-# ort-style font fetcher: reqwest without a TLS provider; we install ring below
+# Font fetcher: reqwest without a TLS provider; we install ring below
 # so the provider is explicit (and so the same binary can opt out of fetching).
 reqwest = { version = "^0.13", features = ["blocking", "rustls-no-provider"], default-features = false, optional = true }
 rustls = { version = "^0.23", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }

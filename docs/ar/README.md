@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>أتمتة الطرفية الافتراضية — PTY + شاشة VT100 حقيقية + خطوط بأسلوب ort + بروتوكولات رسومية داخل النطاق.</strong></p>
+<p align="center"><strong>أتمتة الطرفية الافتراضية — PTY + شاشة VT100 حقيقية + جلب الخطوط أثناء البناء + بروتوكولات رسومية داخل النطاق</strong></p>
 
 <div align="center">
 
@@ -37,7 +37,7 @@ kou هو محرّك طرفية افتراضية مستقل — إدارة PTY، 
 - **شاشة حقيقية.** يُمرَّر تدفّق البايتات عبر مُحلِّل [`vte`](https://crates.io/crates/vte)،
   بحيث تُحترَم تحركات المؤشر CSI، والمسح، والتمرير، ولوحة الألوان SGR ذات الـ16 لونًا —
   وليس مجرد «إسقاط رموز ESC» كما في النماذج الأولية المبكرة.
-- **خطوط بأسلوب ort.** لا يُضمِّن kou الخطوط؛ بل يجلب عائلة منتقاة (Fira Code /
+- **جلب الخطوط أثناء البناء.** لا يُضمِّن kou الخطوط؛ بل يجلب عائلة منتقاة (Fira Code /
   JetBrains Mono للاتينية؛ Source Han Sans / Sarasa Mono / Smiley Sans للمقاطع CJK)
   إلى ذاكرة تخزين مؤقت مشتركة عند أول استخدام، مع إعدادات للمرآة/الوسيط للشبكات
   المقيَّدة. تُنقَّط المحارف باستخدام `ab_glyph`، اللاتينية قبل CJK، بحيث يمزج
@@ -100,6 +100,15 @@ if let Some(escape) = frame {
 
 ## الخطوط والجلب
 
+لا يُضمِّن kou الخطوط — بل يجلب عائلة منتقاة إلى ذاكرة تخزين مؤقت مشتركة
+أثناء البناء، مع إعدادات للمرآة/الوسيط للشبكات المقيَّدة. تختار كل كتابة
+**خطًّا واحدًا**؛ والافتراضيات والبدائل هي:
+
+| الكتابة | الافتراضي | البدائل |
+|---------|-----------|---------|
+| Latin | Fira Code | JetBrains Mono |
+| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+
 اختر العائلة الأساسية / عائلة CJK باستخدام `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`، أو
 حدّد الملفات باستخدام `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`. ترتيب الدقة:
 مسار صريح ← ذاكرة تخزين مؤقت مشتركة ← تنزيل وقت التشغيل (خاصية `font-fetch`،
@@ -108,7 +117,7 @@ if let Some(escape) = frame {
 | متغير البيئة | الغرض |
 |--------------|-------|
 | `KOU_FONT_PRIMARY` | `fira-code` (افتراضي) / `jetbrains-mono` |
-| `KOU_FONT_CJK` | `sarasa` (افتراضي) / `sourcehansans` / `smileysans` / `none` |
+| `KOU_FONT_CJK` | `sourcehansans` (افتراضي) / `sarasa` / `smileysans` / `none` |
 | `KOU_FONT_MIRROR` | استبدال مضيف GitHub / jsDelivr بمرآة. |
 | `KOU_DOWNLOAD_PROXY` | توجيه تنزيلات الخطوط عبر وسيط http/https/socks. |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | مهلة لكل طلب (افتراضي 120). |

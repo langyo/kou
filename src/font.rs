@@ -1,11 +1,11 @@
-//! Font discovery & loading — ort-style.
+//! Font discovery & loading — build-time font fetching.
 //!
-//! kou does not ship fonts. Instead, like [ort](https://crates.io/crates/ort)
-//! for ONNX Runtime, it fetches a curated font family into a shared cache (once,
-//! then cached across runs) and locates it transparently, so a consumer never
-//! has to install fonts by hand. Sources are public (GitHub / jsDelivr CDN);
-//! `KOU_FONT_MIRROR` and `KOU_DOWNLOAD_PROXY` route the fetch through a mirror
-//! or forward proxy, which is essential behind restrictive networks.
+//! kou does not ship fonts. Instead, it fetches a curated font family into a
+//! shared cache (once, then cached across runs) and locates it transparently,
+//! so a consumer never has to install fonts by hand. Sources are public
+//! (GitHub / jsDelivr CDN); `KOU_FONT_MIRROR` and `KOU_DOWNLOAD_PROXY` route
+//! the fetch through a mirror or forward proxy, which is essential behind
+//! restrictive networks.
 //!
 //! A [`FontSet`] pairs a primary monospace face (for Latin glyphs) with an
 //! optional CJK fallback (思源黑体 / 更纱黑体 / 得意黑 / Source Han / Sarasa /
@@ -65,7 +65,7 @@ impl FontFamily {
             Some("sarasa") | Some("sarasa-mono") => Some(FontFamily::SarasaMonoSC),
             Some("smileysans") | Some("smiley") => Some(FontFamily::SmileySans),
             Some("none") | Some("off") => None,
-            _ => Some(FontFamily::SarasaMonoSC),
+            _ => Some(FontFamily::SourceHanSansSC),
         }
     }
 

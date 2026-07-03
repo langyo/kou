@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>Automatización de terminal virtual — PTY + una pantalla VT100 real + tipografía estilo ort + protocolos gráficos in-band.</strong></p>
+<p align="center"><strong>Automatización de terminal virtual — PTY + una pantalla VT100 real + obtención de fuentes en tiempo de compilación + protocolos gráficos in-band</strong></p>
 
 <div align="center">
 
@@ -39,7 +39,7 @@ Tres cosas lo distinguen de un simple envoltorio de PTY:
   por lo que los movimientos CSI del cursor, el borrado, el desplazamiento y la
   paleta SGR de 16 colores se respetan — no es el stub de "tirar ESC al suelo"
   del primer prototipo.
-- **Tipografía estilo ort.** kou no incluye fuentes; obtiene una familia
+- **Obtención de fuentes en tiempo de compilación.** kou no incluye fuentes; obtiene una familia
   seleccionada (Fira Code / JetBrains Mono para latín; Source Han Sans / Sarasa
   Mono / Smiley Sans para CJK) en una caché compartida en el primer uso, con
   opciones de mirror/proxy para redes restrictivas. Los glifos se rasterizan con
@@ -104,6 +104,16 @@ if let Some(escape) = frame {
 
 ## Fuentes y obtención
 
+kou no incluye fuentes — obtiene una familia seleccionada en una caché
+compartida en tiempo de compilación, con opciones de mirror/proxy para redes
+restrictivas. Cada escritura selecciona **una** fuente; los predeterminados y
+alternativas son:
+
+| Escritura | Predeterminado | Alternativas |
+|-----------|----------------|--------------|
+| Latin | Fira Code | JetBrains Mono |
+| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+
 Elige la familia primaria / CJK con `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`, o fija
 archivos con `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`. Orden de resolución:
 ruta explícita → caché compartida → descarga en tiempo de ejecución (la
@@ -112,7 +122,7 @@ característica `font-fetch`, habilitada por defecto).
 | Variable de entorno | Propósito |
 |---------------------|-----------|
 | `KOU_FONT_PRIMARY` | `fira-code` (predeterminado) / `jetbrains-mono` |
-| `KOU_FONT_CJK` | `sarasa` (predeterminado) / `sourcehansans` / `smileysans` / `none` |
+| `KOU_FONT_CJK` | `sourcehansans` (predeterminado) / `sarasa` / `smileysans` / `none` |
 | `KOU_FONT_MIRROR` | Sustituye el host de GitHub / jsDelivr por un mirror. |
 | `KOU_DOWNLOAD_PROXY` | Enruta las descargas de fuentes a través de un proxy http/https/socks. |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Tiempo de espera por solicitud (predeterminado 120). |
