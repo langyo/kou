@@ -1,142 +1,167 @@
-//! Snapshot tests: feed raw ANSI text directly to a Screen, render to PNG,
-//! and write to each repo's `res/` folder.  No bash, no printf, no quoting
-//! issues — just `screen.feed(raw_bytes)` → `render_png_supersampled`.
-//!
-//! Run: `cargo test --test snapshots` (writes PNGs alongside the tests).
+//! Snapshot tests: feed raw ANSI text directly to a Screen, render to PNG.
 
 use kou::{FontCache, Screen, theme_by_name};
-use std::io::Write;
 
-/// Load a font cache from system fonts (or empty fallback).
-fn fonts() -> FontCache {
-    FontCache::from_system_fonts(32.0 * 3.0) // supersampled resolution
-}
+fn fonts() -> FontCache { FontCache::from_system_fonts(32.0 * 3.0) }
 
-/// Render a screen to a PNG file.
-fn snapshot(screen: &Screen, theme_name: &str, path: &str) {
-    let theme = theme_by_name(theme_name);
-    let f = fonts();
-    let png = kou::render::render_png_supersampled(screen, &f, 32.0, 3, theme)
-        .expect("render failed");
+fn snapshot(screen: &Screen, theme: &str, path: &str) {
+    let png = kou::render::render_png_supersampled(screen, &fonts(), 32.0, 3, theme_by_name(theme))
+        .expect("render");
     let dir = std::path::Path::new(path).parent().unwrap();
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(path, &png).unwrap();
     eprintln!("  wrote {path}");
 }
 
-// ── helpers to build raw ANSI text ──────────────────────────────
-
-fn sgr(params: &str, text: &str) -> String {
-    format!("\x1b[{m}{t}\x1b[0m", m = params, t = text)
-}
-
-// ── kou snapshots ────────────────────────────────────────────────
+// ── 1. Neofetch-style showcase ──────────────────────────────────
 
 #[test]
-fn kou_themed_terminal_campbell() {
-    let mut sc = Screen::new(65, 18);
-    sc.feed(format!("\x1b[1;37m\x1b[44m\x1b[K  kou — vtty engine  \x1b[0m\n").as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {}\n", sgr("1", "Protocol Support")).as_bytes());
-    sc.feed(format!("  {} Kitty2 APC       {}\n",
-        sgr("32", "●"), sgr("36", "(ESC _ G … ST)")).as_bytes());
-    sc.feed(format!("  {} iTerm2 OSC 1337   {}\n",
-        sgr("32", "●"), sgr("36", "(ESC ] 1337 … BEL)")).as_bytes());
-    sc.feed(format!("  {} Sixel DCS         {}\n",
-        sgr("32", "●"), sgr("36", "(ESC P q … ST)")).as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {}\n", sgr("1", "Themes (from Windows Terminal)")).as_bytes());
-    let palette = format!("{}{}{}{}{}{}{}",
-        sgr("1;31","R"), sgr("1;32","G"), sgr("1;33","B"),
-        sgr("1;34","C"), sgr("1;35","M"), sgr("1;36","Y"), sgr("1;37","K"));
-    sc.feed(format!("  {}  ANSI palette test\n", palette).as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} · {}\n",
-        sgr("38;2;255;107;157","简体中文"), sgr("38;2;107;255;157","日本語")).as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed("  \x1b[48;2;30;30;40m\x1b[37m ┌──┬──┬──┐ \x1b[0m\n".as_bytes());
-    sc.feed("  \x1b[48;2;30;30;40m\x1b[37m │  │  │  │ \x1b[0m\n".as_bytes());
-    sc.feed("  \x1b[48;2;30;30;40m\x1b[37m └──┴──┴──┘ \x1b[0m\n".as_bytes());
-    snapshot(&sc, "campbell", "res/themed_terminal_campbell.png");
+fn neofetch_showcase() {
+    let mut sc = Screen::new(80, 26);
+    let art = [
+        "       #######       ",
+        "      ##     ##      ",
+        "     ##       ##     ",
+        "    ##         ##    ",
+        "   ##           ##   ",
+        "  ##  #  kou  #  ##  ",
+        "  ##             ##  ",
+        "  ##             ##  ",
+        "   ##           ##   ",
+        "    ##         ##    ",
+        "     ##       ##     ",
+        "      ##     ##      ",
+        "       #######       ",
+    ];
+    let info: [(&str, &str); 10] = [
+        ("OS",       "kou VTty Engine v0.1"),
+        ("Host",     "PTY + VT100 emulator"),
+        ("Kernel",   "vte 0.13 / ab_glyph"),
+        ("Shell",    "kou::VttyManager"),
+        ("Themes",   "15 Windows Terminal schemes"),
+        ("Fonts",    "DejaVu / Noto / system"),
+        ("Protocol", "Kitty2 + iTerm2 + Sixel"),
+        ("Render",   "Lanczos3 supersampled"),
+        ("CJK",      "简体中文 · 日本語 OK"),
+        ("Uptime",   "since you started reading"),
+    ];
+
+    // Feed each row as one complete format string.
+    let line0 = format!("\x1b[1;36m{:<24}\x1b[0m \x1b[1;37m{}\x1b[0m\x1b[2;37m@kou\x1b[0m\n", art[0], "langyo");
+    sc.feed(line0.as_bytes());
+    for i in 0..info.len() {
+        let al = if i + 1 < art.len() { art[i + 1] } else { "" };
+        let line = format!("\x1b[1;36m{:<24}\x1b[0m \x1b[1;33m{:<10}\x1b[0m{}\n", al, info[i].0, info[i].1);
+        sc.feed(line.as_bytes());
+    }
+    // Color palette strip
+    sc.feed(b"\n");
+    let mut pal = String::from("  ");
+    for c in 0u8..8 {
+        pal.push_str(&format!("\x1b[4{}m  \x1b[0m", c));
+    }
+    pal.push('\n');
+    sc.feed(pal.as_bytes());
+
+    snapshot(&sc, "solarized-dark", "res/neofetch_solarized_dark.png");
+    snapshot(&sc, "campbell",       "res/neofetch_campbell.png");
+    snapshot(&sc, "one-half-dark",  "res/neofetch_one_half_dark.png");
 }
+
+// ── 2. Rainbow gradient (visual flair) ──────────────────────────
 
 #[test]
-fn kou_themed_terminal_solarized() {
-    let mut sc = Screen::new(65, 18);
-    sc.feed(format!("\x1b[1;37m\x1b[44m\x1b[K  kou — vtty engine  \x1b[0m\n").as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {}\n", sgr("1", "Protocol Support")).as_bytes());
-    sc.feed(format!("  {} Kitty2 APC       {}\n",
-        sgr("32", "●"), sgr("36", "(ESC _ G … ST)")).as_bytes());
-    sc.feed(format!("  {} iTerm2 OSC 1337   {}\n",
-        sgr("32", "●"), sgr("36", "(ESC ] 1337 … BEL)")).as_bytes());
-    sc.feed(format!("  {} Sixel DCS         {}\n",
-        sgr("32", "●"), sgr("36", "(ESC P q … ST)")).as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {}\n", sgr("1", "15 Windows Terminal schemes")).as_bytes());
-    let palette = format!("{}{}{}{}{}{}{}",
-        sgr("1;31","R"), sgr("1;32","G"), sgr("1;33","B"),
-        sgr("1;34","C"), sgr("1;35","M"), sgr("1;36","Y"), sgr("1;37","K"));
-    sc.feed(format!("  {}  Campbell · Solarized · Tango\n", palette).as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} · {}\n",
-        sgr("38;2;255;107;157","简体中文"), sgr("38;2;107;255;157","日本語")).as_bytes());
-    snapshot(&sc, "solarized-dark", "res/themed_terminal_solarized_dark.png");
+fn rainbow_gradient() {
+    let mut sc = Screen::new(48, 20);
+    let colors = [31u8, 33, 32, 36, 34, 35, 31, 33, 32, 36, 34, 35];
+    sc.feed(b"\n");
+    for (row, &color) in colors.iter().enumerate() {
+        let spaces = " ".repeat(row + 8);
+        let blocks = "#".repeat(row * 2 + 1);
+        sc.feed(format!("{}\x1b[1;{}m{}\x1b[0m\n", spaces, color, blocks).as_bytes());
+    }
+    sc.feed(format!("\n  \x1b[2;37mkou — VTty engine · rainbow gradient\x1b[0m\n").as_bytes());
+    snapshot(&sc, "campbell", "res/rainbow_gradient_campbell.png");
 }
 
-// ── seia snapshots ───────────────────────────────────────────────
+// ── 3. Protocol comparison table ────────────────────────────────
+
+#[test]
+fn protocol_comparison() {
+    let mut sc = Screen::new(72, 14);
+    sc.feed("\x1b[1;37m\x1b[44m\x1b[K  Inline Image Protocols  \x1b[0m\n\n".as_bytes());
+    let rows: &[(&str, &str, &str, &str); 8] = &[
+        ("Feature",  "Kitty2 (APC)",       "iTerm2 (OSC 1337)",  "Sixel (DCS)"),
+        ("Direction", "Encode + Decode",    "Encode + Decode",    "Encode + Decode"),
+        ("Format",    "base64 PNG",         "base64 PNG",         "Raster language"),
+        ("Chunking",  "4096-byte chunks",   "Single frame",       "RLE compressed"),
+        ("Cross-feed","Sliding buffer",     "Sliding buffer",     "Sliding buffer"),
+        ("Aspect",    "Contain-fit",        "Contain-fit",        "Pixel-fit"),
+        ("Dependency","Built-in",           "Built-in",           "icy_sixel crate"),
+        ("Terminals", "kitty, wezterm",     "iTerm2, wezterm",    "xterm, mlterm"),
+    ];
+    for (i, (label, k, it, sx)) in rows.iter().enumerate() {
+        let lc = if i == 0 { "1;37" } else { "0" };
+        let kc = if i == 0 { "1;36" } else { "36" };
+        let ic = if i == 0 { "1;33" } else { "33" };
+        let xc = if i == 0 { "1;35" } else { "35" };
+        sc.feed(format!("\x1b[{lc}m{:<14}\x1b[0m \x1b[{kc}m{:<20}\x1b[0m \x1b[{ic}m{:<20}\x1b[0m \x1b[{xc}m{}\x1b[0m\n",
+            label, k, it, sx, lc=lc, kc=kc, ic=ic, xc=xc).as_bytes());
+    }
+    snapshot(&sc, "one-half-dark", "res/protocol_comparison.png");
+}
+
+// ── 4. seia search results ──────────────────────────────────────
 
 #[test]
 fn seia_search_results() {
-    let mut sc = Screen::new(68, 22);
-    sc.feed("\x1b[1;37m\x1b[44m\x1b[K  seia — multi-engine web search  \x1b[0m\n".as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed("  \x1b[1m$\x1b[0m seia search \"rust async patterns\" --engine duckduckgo\n".as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} DuckDuckGo  {} Results: 3  {} 0.42s\n",
-        sgr("2;36","Engine:"), sgr("2","|"), sgr("2","|")).as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} \x1b[4;34mAsynchronous Programming in Rust\x1b[0m\n", sgr("33","1.")).as_bytes());
-    sc.feed("     \x1b[2mrust-lang.org/async-book\x1b[0m\n".as_bytes());
-    sc.feed("     The official guide to async/await.\n".as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} \x1b[4;34mTokio Tutorial\x1b[0m\n", sgr("33","2.")).as_bytes());
-    sc.feed("     \x1b[2mtokio.rs/tokio/tutorial\x1b[0m\n".as_bytes());
-    sc.feed("     Build async applications with Tokio.\n".as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} \x1b[4;34mFutures Explained in 200 Lines\x1b[0m\n", sgr("33","3.")).as_bytes());
-    sc.feed("     \x1b[2mcfsamson.github.io\x1b[0m\n".as_bytes());
-    sc.feed("     Build a future executor from scratch.\n".as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} Also tried: {} {} {}\n",
-        sgr("32","●"), sgr("36","Bing"), sgr("2","(3)"), sgr("36","  Brave")).as_bytes());
+    let mut sc = Screen::new(62, 24);
+    sc.feed("\x1b[1;37m\x1b[44m\x1b[K  seia — multi-engine web search  \x1b[0m\n\n".as_bytes());
+    sc.feed("  \x1b[1m$\x1b[0m seia search \"rust async patterns\"\n".as_bytes());
+    sc.feed("  \x1b[2;36mEngine:\x1b[0m \x1b[36mDuckDuckGo\x1b[0m \x1b[2m| Results: 5 | Time: 0.42s\x1b[0m\n\n".as_bytes());
+    let results = [
+        ("Asynchronous Programming in Rust", "rust-lang.org/async-book", "The official guide to async/await."),
+        ("Tokio Tutorial", "tokio.rs/tokio/tutorial", "Build async apps with the Tokio runtime."),
+        ("async-std Documentation", "async.rs", "Async version of the standard library."),
+        ("Pin and Unpin in Rust", "blog.cloudflare.com/pin-and-unpin", "Self-referential structs explained."),
+        ("Futures Explained in 200 Lines", "cfsamson.github.io", "Build a future executor from scratch."),
+    ];
+    for (i, (title, url, desc)) in results.iter().enumerate() {
+        sc.feed(format!("  \x1b[33m{}.\x1b[0m \x1b[4;34m{}\x1b[0m\n", i + 1, title).as_bytes());
+        sc.feed(format!("     \x1b[2m{}\x1b[0m\n", url).as_bytes());
+        sc.feed(format!("     {}\n\n", desc).as_bytes());
+    }
+    sc.feed("  \x1b[32m●\x1b[0m Also tried: \x1b[36mBing (3)\x1b[0m  \x1b[36mBrave (2)\x1b[0m\n".as_bytes());
     snapshot(&sc, "solarized-dark", "../seia/res/search_solarized_dark.png");
-    snapshot(&sc, "campbell", "../seia/res/search_campbell.png");
+    snapshot(&sc, "campbell",       "../seia/res/search_campbell.png");
 }
 
-// ── shirabe snapshots ────────────────────────────────────────────
+// ── 5. shirabe debug server ─────────────────────────────────────
 
 #[test]
 fn shirabe_debug_server() {
-    let mut sc = Screen::new(68, 22);
-    sc.feed("\x1b[1;37m\x1b[44m\x1b[K  shirabe — headless browser automation  \x1b[0m\n".as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed("  \x1b[1m$\x1b[0m shirabe serve --port 3001\n".as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} Backend: {} {}\n",
-        sgr("32","●"), sgr("36","Chromium 131.0"), sgr("2","(headless)")).as_bytes());
-    sc.feed(format!("  {} Debug API: \x1b[4;34mhttp://localhost:3001\x1b[0m\n", sgr("32","●")).as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {}\n", sgr("1","Endpoints")).as_bytes());
-    sc.feed("  \x1b[2mGET\x1b[0m  /health        Health check\n".as_bytes());
-    sc.feed("  \x1b[2mGET\x1b[0m  /info          Browser info\n".as_bytes());
-    sc.feed("  \x1b[2mPOST\x1b[0m /navigate       Navigate to URL\n".as_bytes());
-    sc.feed("  \x1b[2mPOST\x1b[0m /screenshot      Capture PNG\n".as_bytes());
-    sc.feed("  \x1b[2mPOST\x1b[0m /click           Click element\n".as_bytes());
-    sc.feed("  \x1b[2mGET\x1b[0m  /dom            Query DOM\n".as_bytes());
-    sc.feed("  \x1b[2mGET\x1b[0m  /a11y           Accessibility tree\n".as_bytes());
-    sc.feed("\n".as_bytes());
-    sc.feed(format!("  {} Zero-config: finds Chrome automatically\n", sgr("32","●")).as_bytes());
+    let mut sc = Screen::new(58, 22);
+    sc.feed("\x1b[1;37m\x1b[44m\x1b[K  shirabe — headless browser automation  \x1b[0m\n\n".as_bytes());
+    sc.feed("  \x1b[1m$\x1b[0m shirabe serve --port 3001\n\n".as_bytes());
+    sc.feed("  \x1b[32m●\x1b[0m Backend: \x1b[36mChromium 131.0\x1b[0m \x1b[2m(headless)\x1b[0m\n".as_bytes());
+    sc.feed("  \x1b[32m●\x1b[0m Debug API: \x1b[4;34mhttp://localhost:3001\x1b[0m\n\n".as_bytes());
+    sc.feed("  \x1b[1mHTTP API\x1b[0m\n\n".as_bytes());
+    let endpoints = [
+        ("GET",  "/health",     "Health check"),
+        ("GET",  "/info",       "Browser + viewport info"),
+        ("POST", "/navigate",   "Navigate to a URL"),
+        ("POST", "/screenshot", "Capture viewport as PNG"),
+        ("POST", "/click",      "Click element by selector"),
+        ("POST", "/type",       "Type text into a field"),
+        ("POST", "/evaluate",   "Execute JavaScript"),
+        ("GET",  "/dom",        "Query DOM by CSS selector"),
+        ("GET",  "/a11y",       "Accessibility tree snapshot"),
+    ];
+    for (method, path, desc) in &endpoints {
+        let mc = if *method == "GET" { "2;37" } else { "2;33" };
+        sc.feed(format!("  \x1b[{}m{:<4}\x1b[0m \x1b[36m{:<14}\x1b[0m {}\n", mc, method, path, desc).as_bytes());
+    }
+    sc.feed("\n  \x1b[32m●\x1b[0m Zero-config: auto-discovers Chrome / Chromium / Edge\n".as_bytes());
     snapshot(&sc, "solarized-dark", "../shirabe/res/debug_server_solarized_dark.png");
-    snapshot(&sc, "one-half-dark", "../shirabe/res/debug_server_one_half_dark.png");
+    snapshot(&sc, "one-half-dark",  "../shirabe/res/debug_server_one_half_dark.png");
 }

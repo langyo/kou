@@ -135,7 +135,7 @@ cargo test --all-features
 <details>
 <summary>Screenshots</summary>
 
-<p align="center"><img src="res/themed_terminal_campbell.png" alt="kou snapshot" height="400" /></p>
+<p align="center"><img src="res/neofetch_campbell.png" alt="kou snapshot" height="400" /></p>
 
 </details>
 
