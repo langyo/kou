@@ -26,8 +26,6 @@
 
 </div>
 
-<p align="center"><img src="res/themed_terminal_campbell.png" alt="kou terminal rendering" /></p>
-
 ## Introduction
 
 kou is a standalone virtual-terminal engine — PTY management, a VT100/ANSI
@@ -136,3 +134,10 @@ cargo test --all-features
 ## License
 
 SySL-1.0 (Synthetic Source License). See [LICENSE](./LICENSE).
+
+<details>
+<summary>Screenshots</summary>
+
+<p align="center"><img src="res/themed_terminal_campbell.png" alt="kou snapshot" height="400" /></p>
+
+</details>
