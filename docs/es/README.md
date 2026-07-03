@@ -40,13 +40,10 @@ Tres cosas lo distinguen de un simple envoltorio de PTY:
   paleta SGR de 16 colores se respetan — no es el stub de "tirar ESC al suelo"
   del primer prototipo.
 - **Obtención de fuentes en tiempo de compilación.** kou pre-descarga una fuente por
-  escritura — Fira Code para latín, Source Han Sans para CJK, Noto Naskh Arabic
-  para árabe, Noto Sans Devanagari, Noto Sans Thai — en una caché compartida en
-  tiempo de compilación. Sobrescribe las familias o fija archivos locales mediante
-  variables de entorno; enruta las descargas a través de un proxy HTTP(S) (pasado
-  a reqwest) cuando estés tras una red restrictiva. Los glifos se rasterizan con
-  `ab_glyph`, probando cada tipografía en orden, de modo que un solo renderizado
-  mezcla escrituras sin tofu.
+  escritura en una caché compartida en tiempo de compilación. Sobrescribe las
+  familias o fija archivos locales mediante variables de entorno; enruta las
+  descargas a través de un proxy HTTP(S) cuando estés tras una red restrictiva.
+  Consulta [Fuentes y obtención](#fuentes-y-obtención) para la lista completa.
 - **Gráficos in-band.** Un fotograma puede rasterizarse a PNG o describirse a
   un terminal compatible mediante el protocolo gráfico kitty (`kitty2`) o
   iTerm2 — así wezterm / kitty / iTerm2 / Ghostty renderizan los píxeles

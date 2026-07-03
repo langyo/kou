@@ -37,12 +37,9 @@ kou 是一个独立的虚拟终端引擎——集 PTY 管理、VT100/ANSI 屏幕
 - **VT100 屏幕。** 字节流通过 [`vte`](https://crates.io/crates/vte) 解析器
   处理，因此 CSI 光标移动、擦除、滚动以及 SGR 16 色调色板都能被正确响应——
   而不是早期原型那种"丢弃 ESC 序列"的占位实现。
-- **构建时字体预取。** kou 会在构建时为每种文字各预下载一个字体——Latin 用
-  Fira Code，CJK 用 Source Han Sans，阿拉伯文用 Noto Naskh Arabic，
-  Noto Sans Devanagari、Noto Sans Thai——并存入共享缓存。可通过环境变量
-  覆盖字体族或指定本地文件；身处受限网络时，可经由 HTTP(S) 代理（传给
-  reqwest）来路由下载。字形由 `ab_glyph` 光栅化，按顺序逐个尝试字体面，
-  因此单次渲染即可混排多种文字而不会出现豆腐块。
+- **构建时字体预取。** kou 会在构建时为每种文字各预下载一个字体并存入共享
+  缓存。可通过环境变量覆盖字体族或指定本地文件；身处受限网络时，可经由
+  HTTP(S) 代理来路由下载。完整列表见[字体与拉取](#字体与拉取)。
 - **带内图形。** 一帧既可以光栅化为 PNG，也可以通过 kitty（`kitty2`）或 iTerm2
   图形协议描述给支持这些协议的终端——这样 wezterm / kitty / iTerm2 / Ghostty
   就能原位渲染真实像素。

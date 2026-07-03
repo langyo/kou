@@ -40,13 +40,10 @@ Trois choses le distinguent d'un simple wrapper PTY :
   l'effacement, le défilement et la palette SGR 16 couleurs sont respectés —
   pas le bouchon « jeter ESC au sol » du premier prototype.
 - **Récupération des polices à la compilation.** kou pré-télécharge une police par
-  écriture — Fira Code pour le latin, Source Han Sans pour le CJK, Noto Naskh
-  Arabic pour l'arabe, Noto Sans Devanagari, Noto Sans Thai — dans un cache
-  partagé à la compilation. Surchargez les familles ou épinglez des fichiers
-  locaux via des variables d'environnement ; acheminez les téléchargements via
-  un proxy HTTP(S) (passé à reqwest) derrière un réseau restrictif. Les glyphes
-  sont rastérisés avec `ab_glyph`, en essayant chaque fonte dans l'ordre, de
-  sorte qu'un seul rendu mélange les écritures sans tofu.
+  écriture dans un cache partagé à la compilation. Surchargez les familles ou
+  épinglez des fichiers locaux via des variables d'environnement ; acheminez les
+  téléchargements via un proxy HTTP(S) derrière un réseau restrictif. Voir
+  [Polices et récupération](#polices-et-récupération) pour la liste complète.
 - **Graphiques in-band.** Une trame peut être rastérisée en PNG, ou décrite à un
   terminal compatible via le protocole graphique kitty (`kitty2`) ou iTerm2 —
   ainsi wezterm / kitty / iTerm2 / Ghostty affichent les vrais pixels en ligne.

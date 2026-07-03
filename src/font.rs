@@ -172,13 +172,13 @@ impl FontFamily {
                 "https://cdn.jsdelivr.net/gh/atelier-anchor/smiley-sans@2.0.1/fonts/SmileySans-Regular.ttf"
             }
             FontFamily::NotoNaskhArabic => {
-                "https://cdn.jsdelivr.net/gh/notofonts/arabic@main/fonts/NotoNaskhArabic/full/ttf/NotoNaskhArabic-Regular.ttf"
+                "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoNaskhArabic/NotoNaskhArabic-Regular.ttf"
             }
             FontFamily::NotoSansDevanagari => {
-                "https://cdn.jsdelivr.net/gh/notofonts/devanagari@main/fonts/NotoSansDevanagari/full/ttf/NotoSansDevanagari-Regular.ttf"
+                "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf"
             }
             FontFamily::NotoSansThai => {
-                "https://cdn.jsdelivr.net/gh/notofonts/thai@main/fonts/NotoSansThai/full/ttf/NotoSansThai-Regular.ttf"
+                "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansThai/NotoSansThai-Regular.ttf"
             }
         };
         if let Ok(mirror) = std::env::var("KOU_FONT_MIRROR") {

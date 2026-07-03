@@ -38,13 +38,11 @@ Three things set it apart from a bare PTY wrapper:
 - **VT100 screen.** The byte stream is run through the [`vte`](https://crates.io/crates/vte)
   parser, so CSI cursor moves, erase, scroll and the SGR 16-colour palette are
   honoured — not the "drop ESC on the floor" stub of the early prototype.
-- **Build-time font fetching.** kou pre-downloads one font per script — Fira
-  Code for Latin, Source Han Sans for CJK, Noto Naskh Arabic for Arabic,
-  Noto Sans Devanagari, Noto Sans Thai — into a shared cache at build time.
-  Override families or pin local files via environment variables; route
-  downloads through an HTTP(S) proxy (passed to reqwest) when behind a
-  restrictive network. Glyphs are rasterised with `ab_glyph`, trying each face
-  in order so a single render mixes scripts without tofu.
+- **Build-time font fetching.** kou pre-downloads one font per script into a
+  shared cache at build time. Override families or pin local files via
+  environment variables; route downloads through an HTTP(S) proxy when behind
+  a restrictive network. See [Fonts & fetching](#fonts--fetching) for the
+  full list.
 - **Inband graphics.** A frame can be rasterised to PNG, or described to a
   capable terminal through the kitty (`kitty2`) or iTerm2 graphics protocol — so
   wezterm / kitty / iTerm2 / Ghostty render the real pixels inline.
