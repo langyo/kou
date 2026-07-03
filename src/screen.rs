@@ -40,8 +40,10 @@ impl Default for Cell {
 
 /// Check if `buf` contains the start of an in-band graphics sequence:
 /// kitty APC (`\x1b_G`), iTerm2 OSC 1337 (`\x1b]1337`), or Sixel DCS (`\x1bP`).
+#[allow(clippy::manual_contains)]
 fn apc_buf_has_start(buf: &[u8]) -> bool {
-    buf.windows(3).any(|w| w[0] == 0x1b && w[1] == b'_' && w[2] == b'G')
+    buf.windows(3)
+        .any(|w| w[0] == 0x1b && w[1] == b'_' && w[2] == b'G')
         || buf.windows(6).any(|w| w == b"\x1b]1337")
         || buf.windows(2).any(|w| w[0] == 0x1b && w[1] == b'P')
 }

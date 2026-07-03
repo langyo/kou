@@ -93,9 +93,9 @@ impl FontFamily {
     fn path_env(self) -> Option<&'static str> {
         match self {
             FontFamily::FiraCode | FontFamily::JetBrainsMono => Some("KOU_FONT_PATH"),
-            FontFamily::SourceHanSansSC
-            | FontFamily::SarasaMonoSC
-            | FontFamily::SmileySans => Some("KOU_FONT_CJK_PATH"),
+            FontFamily::SourceHanSansSC | FontFamily::SarasaMonoSC | FontFamily::SmileySans => {
+                Some("KOU_FONT_CJK_PATH")
+            }
         }
     }
 
@@ -481,7 +481,7 @@ fn find_recursive(candidates: &[&str], dir: &Path, depth: u32) -> Option<PathBuf
                 return Some(p);
             }
         } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-            if candidates.iter().any(|c| *c == name) {
+            if candidates.contains(&name) {
                 return Some(path);
             }
         }

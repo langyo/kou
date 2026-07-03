@@ -300,18 +300,20 @@ pub fn process_sixel_dcs(
         return;
     };
     // Convert RGBA → PNG for the InlineImageStore (unified render path).
-    use image::{ImageBuffer, Rgba, ImageEncoder};
-    let img: ImageBuffer<Rgba<u8>, Vec<u8>> = match ImageBuffer::from_raw(
-        sixel_img.width,
-        sixel_img.height,
-        sixel_img.pixels.clone(),
-    ) {
-        Some(img) => img,
-        None => return,
-    };
+    use image::{ImageBuffer, ImageEncoder, Rgba};
+    let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
+        match ImageBuffer::from_raw(sixel_img.width, sixel_img.height, sixel_img.pixels.clone()) {
+            Some(img) => img,
+            None => return,
+        };
     let mut png = Vec::new();
     if image::codecs::png::PngEncoder::new(&mut png)
-        .write_image(img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8)
+        .write_image(
+            img.as_raw(),
+            img.width(),
+            img.height(),
+            image::ExtendedColorType::Rgba8,
+        )
         .is_err()
     {
         return;
@@ -331,14 +333,15 @@ pub fn process_sixel_dcs(
     });
 }
 
-#[cfg(test)]
 impl InlineImageStore {
     pub fn len(&self) -> usize {
         self.placements.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.placements.is_empty()
+    }
 }
-
-
 
 /// Scan `data` for iTerm2 OSC 1337 inline-image sequences (`\x1b]1337;…\x07`
 /// and return each as `(start_byte, end_byte, body_bytes)`.  `body` is the
@@ -424,14 +427,23 @@ fn parse_iterm_kv(kv: &str, key: &str) -> Option<u32> {
     })
 }
 
-
 /// Partial-state accumulator for chunked kitty APC transfers.
 /// Each entry tracks the assembled base64 payload, optional dimension hints,
 /// and whether a display (`a=t` / `a=T`) was requested on any chunk.
+/// One accumulated chunk: base64 payload + dimension hints + place flag.
+type KittyChunk = (
+    Vec<u8>,
+    Option<u32>,
+    Option<u32>,
+    Option<u32>,
+    Option<u32>,
+    bool,
+);
+
 #[derive(Debug, Clone, Default)]
 pub struct KittyDecodeState {
     /// image_id → (accumulated_base64, s=, v=, c=, r=, wants_place)
-    pending: HashMap<u32, (Vec<u8>, Option<u32>, Option<u32>, Option<u32>, Option<u32>, bool)>,
+    pending: HashMap<u32, KittyChunk>,
 }
 
 /// Scan `data` for kitty APC sequences (`\x1b_G…\x1b\\`) and return each as
@@ -447,15 +459,15 @@ pub fn extract_kitty_apcs(data: &[u8]) -> Vec<(usize, usize, String, Vec<u8>)> {
             while j < data.len().saturating_sub(1) {
                 if data[j] == 0x1b && data[j + 1] == b'\\' {
                     let raw = &data[payload_start..j];
-                    let (control, payload) =
-                        if let Some(idx) = raw.iter().position(|&b| b == b';') {
-                            (
-                                String::from_utf8_lossy(&raw[..idx]).to_string(),
-                                raw[idx + 1..].to_vec(),
-                            )
-                        } else {
-                            (String::from_utf8_lossy(raw).to_string(), Vec::new())
-                        };
+                    let (control, payload) = if let Some(idx) = raw.iter().position(|&b| b == b';')
+                    {
+                        (
+                            String::from_utf8_lossy(&raw[..idx]).to_string(),
+                            raw[idx + 1..].to_vec(),
+                        )
+                    } else {
+                        (String::from_utf8_lossy(raw).to_string(), Vec::new())
+                    };
                     results.push((start, j + 2, control, payload));
                     i = j + 2;
                     break;
@@ -480,11 +492,7 @@ fn parse_control(raw: &str) -> Vec<(String, String)> {
             let mut kv = pair.splitn(2, '=');
             let k = kv.next()?.trim().to_ascii_lowercase();
             let v = kv.next().unwrap_or("").trim().to_string();
-            if k.is_empty() {
-                None
-            } else {
-                Some((k, v))
-            }
+            if k.is_empty() { None } else { Some((k, v)) }
         })
         .collect()
 }
@@ -538,9 +546,8 @@ pub fn process_kitty_apc(
     }
 
     // Still waiting for more chunks — do not place yet.
-    match more {
-        Some(true) => return,
-        _ => {}
+    if more == Some(true) {
+        return;
     }
 
     let (b64, s, v, c, r, wants_place) = match state.pending.remove(&image_id) {
@@ -560,10 +567,7 @@ pub fn process_kitty_apc(
     let cells_w = c.unwrap_or(1).max(1);
     let cells_h = r.unwrap_or(1).max(1);
 
-    store.insert(InlineImage {
-        id: image_id,
-        data,
-    });
+    store.insert(InlineImage { id: image_id, data });
     store.place(Placement {
         image_id,
         row: cursor_row,
@@ -652,8 +656,7 @@ mod tests {
         let apcs = extract_kitty_apcs(seq.as_bytes());
         assert_eq!(apcs.len(), 1);
         process_kitty_apc(
-            &mut state, &apcs[0].2, &apcs[0].3,
-            /* cursor */ 3, 5, &mut store,
+            &mut state, &apcs[0].2, &apcs[0].3, /* cursor */ 3, 5, &mut store,
         );
         assert_eq!(store.placements().len(), 1);
         let p = &store.placements()[0];
@@ -684,8 +687,8 @@ mod tests {
     }
 
     fn minimal_png(w: u32, h: u32) -> Vec<u8> {
-        use image::{ImageBuffer, Rgba, ImageEncoder};
         use image::codecs::png::PngEncoder;
+        use image::{ImageBuffer, ImageEncoder, Rgba};
         let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
             ImageBuffer::from_pixel(w, h, Rgba([0, 0, 0, 255]));
         let mut buf = Vec::new();

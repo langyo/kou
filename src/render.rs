@@ -600,7 +600,7 @@ fn render_buffer(
                     ((p.pixel_h as f64 / 16.0).ceil() * scale_h) as u32,
                 )
             } else {
-                ((p.cells_w * cell_w) as u32, (p.cells_h * cell_h) as u32)
+                (p.cells_w * cell_w, p.cells_h * cell_h)
             };
             if region_w == 0 || region_h == 0 {
                 continue;
@@ -617,8 +617,7 @@ fn render_buffer(
             // logos look squished.
             let src_w = decoded.width();
             let src_h = decoded.height();
-            let scale = (region_w as f64 / src_w as f64)
-                .min(region_h as f64 / src_h as f64);
+            let scale = (region_w as f64 / src_w as f64).min(region_h as f64 / src_h as f64);
             let fit_w = ((src_w as f64) * scale).round().max(1.0) as u32;
             let fit_h = ((src_h as f64) * scale).round().max(1.0) as u32;
             let off_x = x as i64 + ((region_w - fit_w) / 2) as i64;

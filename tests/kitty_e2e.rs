@@ -5,13 +5,17 @@ use kou::{FontCache, Screen, theme_by_name};
 
 /// Build a minimal 4×4 pixel PNG (red square).
 fn red_png() -> Vec<u8> {
-    use image::{ImageBuffer, Rgba, ImageEncoder};
     use image::codecs::png::PngEncoder;
-    let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        ImageBuffer::from_pixel(4, 4, Rgba([255, 0, 0, 255]));
+    use image::{ImageBuffer, ImageEncoder, Rgba};
+    let img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_pixel(4, 4, Rgba([255, 0, 0, 255]));
     let mut buf = Vec::new();
     PngEncoder::new(&mut buf)
-        .write_image(img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8)
+        .write_image(
+            img.as_raw(),
+            img.width(),
+            img.height(),
+            image::ExtendedColorType::Rgba8,
+        )
         .unwrap();
     buf
 }
@@ -19,19 +23,24 @@ fn red_png() -> Vec<u8> {
 /// Build a 128×128 noisy PNG (varies per-pixel so PNG can't compress it,
 /// producing a multi-KB base64 payload for split-feed testing).
 fn large_red_png() -> Vec<u8> {
-    use image::{ImageBuffer, Rgba, ImageEncoder};
+    use image::{ImageBuffer, ImageEncoder, Rgba};
     let mut img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(128, 128);
     for y in 0..128 {
         for x in 0..128 {
-            let r = ((x as u32 * 7 + y as u32 * 13) % 256) as u8;
-            let g = ((x as u32 * 3 + y as u32 * 5) % 256) as u8;
-            let b = ((x as u32 * 11 + y as u32 * 17) % 256) as u8;
+            let r = ((x * 7 + y * 13) % 256) as u8;
+            let g = ((x * 3 + y * 5) % 256) as u8;
+            let b = ((x * 11 + y * 17) % 256) as u8;
             img[(x, y)] = Rgba([r, g, b, 255]);
         }
     }
     let mut buf = Vec::new();
     image::codecs::png::PngEncoder::new(&mut buf)
-        .write_image(img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8)
+        .write_image(
+            img.as_raw(),
+            img.width(),
+            img.height(),
+            image::ExtendedColorType::Rgba8,
+        )
         .unwrap();
     buf
 }
@@ -39,16 +48,10 @@ fn large_red_png() -> Vec<u8> {
 #[test]
 fn kitty_apc_renders_visible_image() {
     let png = red_png();
-    let b64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &png,
-    );
+    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &png);
 
     // Build a kitty APC: place a 4×4-cell image at cursor position.
-    let kitty = format!(
-        "\x1b_Ga=t,f=100,s=4,v=4,c=4,r=4,i=1;{}\x1b\\",
-        b64
-    );
+    let kitty = format!("\x1b_Ga=t,f=100,s=4,v=4,c=4,r=4,i=1;{}\x1b\\", b64);
 
     // Move cursor to row 2, col 3 BEFORE the APC.
     let mut screen = Screen::new(20, 10);
@@ -57,7 +60,10 @@ fn kitty_apc_renders_visible_image() {
 
     // Verify placement.
     let placements = screen.image_store.placements();
-    assert!(!placements.is_empty(), "no placement; feed may not have decoded the APC");
+    assert!(
+        !placements.is_empty(),
+        "no placement; feed may not have decoded the APC"
+    );
     let p = &placements[0];
     assert_eq!(p.row, 2);
     assert_eq!(p.col, 3);
@@ -66,13 +72,12 @@ fn kitty_apc_renders_visible_image() {
     // Render to PNG.
     let theme = theme_by_name("campbell");
     let empty_fonts = FontCache::empty();
-    let rendered = kou::render::render_png_supersampled(
-        &screen, &empty_fonts, 8.0, 1, theme,
-    ).unwrap();
+    let rendered =
+        kou::render::render_png_supersampled(&screen, &empty_fonts, 8.0, 1, theme).unwrap();
 
     let img = image::load_from_memory(&rendered).unwrap();
     let (w, h) = img.dimensions();
-    let cell_w = 8u32;  // empty font cache: 8px
+    let cell_w = 8u32; // empty font cache: 8px
     let cell_h = 16u32;
 
     // Center of the red image block: col 3..7, row 2..6
@@ -85,8 +90,11 @@ fn kitty_apc_renders_visible_image() {
 
     // Top-left corner: dark canvas bg.
     let bg = img.get_pixel(0, 0);
-    assert!(bg[0] < 30 && bg[1] < 30 && bg[2] < 30,
-            "canvas bg should be dark, got {:?}", bg);
+    assert!(
+        bg[0] < 30 && bg[1] < 30 && bg[2] < 30,
+        "canvas bg should be dark, got {:?}",
+        bg
+    );
 
     std::fs::write("/tmp/kitty_e2e_test.png", &rendered).unwrap();
     eprintln!("wrote /tmp/kitty_e2e_test.png ({w}x{h})");
@@ -108,8 +116,10 @@ fn kitty_apc_split_across_feed() {
     screen.feed(part2);
 
     let placements = screen.image_store.placements();
-    assert!(!placements.is_empty(),
-            "split APC should still produce a placement after reassembly");
+    assert!(
+        !placements.is_empty(),
+        "split APC should still produce a placement after reassembly"
+    );
     assert_eq!(placements[0].image_id, 99);
 }
 
@@ -129,7 +139,10 @@ fn iterm2_osc1337_renders_visible_image() {
     screen.feed(seq.as_bytes());
 
     let placements = screen.image_store.placements();
-    assert!(!placements.is_empty(), "iTerm2 OSC 1337 should produce a placement");
+    assert!(
+        !placements.is_empty(),
+        "iTerm2 OSC 1337 should produce a placement"
+    );
     let p = &placements[0];
     assert_eq!(p.row, 2);
     assert_eq!(p.col, 3);
@@ -139,17 +152,19 @@ fn iterm2_osc1337_renders_visible_image() {
     // Render and verify the red region.
     let theme = theme_by_name("campbell");
     let empty_fonts = FontCache::empty();
-    let rendered = kou::render::render_png_supersampled(
-        &screen, &empty_fonts, 8.0, 1, theme,
-    ).unwrap();
+    let rendered =
+        kou::render::render_png_supersampled(&screen, &empty_fonts, 8.0, 1, theme).unwrap();
     let img = image::load_from_memory(&rendered).unwrap();
     let cell_w = 8u32;
     let cell_h = 16u32;
     let cx = (3 + 2) as u32 * cell_w;
     let cy = (2 + 1) as u32 * cell_h;
     let pixel = img.get_pixel(cx, cy);
-    assert!(pixel[0] > 200 && pixel[1] < 50 && pixel[2] < 50,
-            "iTerm2 image region should be red, got {:?}", pixel);
+    assert!(
+        pixel[0] > 200 && pixel[1] < 50 && pixel[2] < 50,
+        "iTerm2 image region should be red, got {:?}",
+        pixel
+    );
 }
 
 #[test]
@@ -164,12 +179,18 @@ fn iterm2_osc1337_split_across_feed() {
         "\x1b]1337;File=inline=1;width=8cells;height=8cells:{}\x07",
         b64
     );
-    assert!(seq.len() > 4000, "test needs a large OSC to exercise the buffer");
+    assert!(
+        seq.len() > 4000,
+        "test needs a large OSC to exercise the buffer"
+    );
     let mid = seq.len() / 2;
     let mut screen = Screen::new(20, 10);
     screen.feed(b"\x1b[3;4H");
     screen.feed(&seq.as_bytes()[..mid]);
     screen.feed(&seq.as_bytes()[mid..]);
     let n = screen.image_store.placements().len();
-    assert!(n > 0, "split iTerm2 OSC should still produce a placement (got {n})");
+    assert!(
+        n > 0,
+        "split iTerm2 OSC should still produce a placement (got {n})"
+    );
 }
