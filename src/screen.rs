@@ -38,6 +38,13 @@ impl Default for Cell {
     }
 }
 
+/// Check if `buf` contains a kitty APC start marker (`\x1b_G`, which is the
+/// three-byte sequence ESC `_` `G`).
+fn apc_buf_has_start(buf: &[u8]) -> bool {
+    buf.windows(3)
+        .any(|w| w[0] == 0x1b && w[1] == b'_' && w[2] == b'G')
+}
+
 /// Display width of `ch` on the terminal grid (1 or 2). CJK / full-width /
 /// wide emoji count as 2; control chars as 0.
 pub fn char_width(ch: char) -> u16 {
@@ -303,12 +310,15 @@ impl Screen {
             consumed = consumed.max(*end);
         }
         // Drop the processed prefix — leave only the unprocessed tail
-        // (partial APC or non-APC bytes). Bound the buffer so a
-        // runaway stream without an ST terminator doesn't grow forever.
-        let cap = 256 * 1024;
+        // (partial APC or non-APC bytes).  Only clear the buffer when it
+        // grows very large AND there's no APC start marker (\x1b_G) in it,
+        // so a large-but-valid multi-chunk image transfer is not truncated.
+        let cap = 16 * 1024 * 1024; // 16 MB
         if consumed > 0 {
             self.apc_buf.drain(..consumed);
-        } else if self.apc_buf.len() > cap {
+        } else if self.apc_buf.len() > cap
+            || (!apc_buf_has_start(&self.apc_buf) && self.apc_buf.len() > 4096)
+        {
             self.apc_buf.clear();
         }
 
