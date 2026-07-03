@@ -431,6 +431,9 @@ const MONO_CANDIDATES: &[&str] = &[
 /// Candidate CJK fallback filenames.
 const CJK_CANDIDATES: &[&str] = &[
     "NotoSansCJK-Regular.ttc",
+    "NotoSansCJK-Medium.ttc",
+    "NotoSansCJK-Light.ttc",
+    "NotoSansCJK-Bold.ttc",
     "NotoSansSC-Regular.otf",
     "NotoSansSC-Regular.ttf",
     "NotoSansTC-Regular.otf",
@@ -440,17 +443,40 @@ const CJK_CANDIDATES: &[&str] = &[
     "SarasaMonoSC-Regular.ttf",
     "SmileySans-Regular.ttf",
     "WQYMicroHei.ttc",
+    "DroidSansFallbackFull.ttf",
+    "DroidSansFallback.ttf",
     "msyh.ttc",
     "SimHei.ttf",
 ];
 
-/// Find the first existing path for each candidate in `search_dirs`.
+/// Find the first existing path for `candidate` by recursively walking
+/// `search_dirs` (up to 3 levels deep). System fonts are often nested in
+/// subdirectories like `/usr/share/fonts/opentype/noto/` or
+/// `/usr/share/fonts/truetype/dejavu/`, so a flat `dir.join(name)` check
+/// misses them.
 fn find_in_dirs(candidates: &[&str], dirs: &[PathBuf]) -> Option<PathBuf> {
-    for name in candidates {
-        for dir in dirs {
-            let p = dir.join(name);
-            if p.exists() {
+    for dir in dirs {
+        if let Some(p) = find_recursive(candidates, dir, 3) {
+            return Some(p);
+        }
+    }
+    None
+}
+
+fn find_recursive(candidates: &[&str], dir: &Path, depth: u32) -> Option<PathBuf> {
+    if depth == 0 {
+        return None;
+    }
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(p) = find_recursive(candidates, &path, depth - 1) {
                 return Some(p);
+            }
+        } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            if candidates.iter().any(|c| *c == name) {
+                return Some(path);
             }
         }
     }
