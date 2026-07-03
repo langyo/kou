@@ -588,9 +588,20 @@ fn render_buffer(
             let Ok(decoded) = image::load_from_memory(&inline.data) else {
                 continue;
             };
-            // The cell region the kitty protocol asked us to fill.
-            let region_w = (p.cells_w * cell_w) as u32;
-            let region_h = (p.cells_h * cell_h) as u32;
+            // The cell region the kitty/iTerm2 protocol asked us to fill.
+            // Sixel placements use pixel dimensions (cells=1); honour those
+            // when they look like real pixel hints rather than placeholders.
+            let (region_w, region_h) = if p.pixel_w > 0 && p.pixel_h > 0 && p.cells_w <= 1 {
+                // Sixel: use source pixel size scaled to the cell grid.
+                let scale_w = cell_w as f64;
+                let scale_h = cell_h as f64;
+                (
+                    ((p.pixel_w as f64 / 8.0).ceil() * scale_w) as u32, // assume ~8px/char
+                    ((p.pixel_h as f64 / 16.0).ceil() * scale_h) as u32,
+                )
+            } else {
+                ((p.cells_w * cell_w) as u32, (p.cells_h * cell_h) as u32)
+            };
             if region_w == 0 || region_h == 0 {
                 continue;
             }

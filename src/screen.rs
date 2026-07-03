@@ -39,10 +39,11 @@ impl Default for Cell {
 }
 
 /// Check if `buf` contains the start of an in-band graphics sequence:
-/// kitty APC (`\x1b_G`) or iTerm2 OSC 1337 (`\x1b]1337;`).
+/// kitty APC (`\x1b_G`), iTerm2 OSC 1337 (`\x1b]1337`), or Sixel DCS (`\x1bP`).
 fn apc_buf_has_start(buf: &[u8]) -> bool {
     buf.windows(3).any(|w| w[0] == 0x1b && w[1] == b'_' && w[2] == b'G')
         || buf.windows(6).any(|w| w == b"\x1b]1337")
+        || buf.windows(2).any(|w| w[0] == 0x1b && w[1] == b'P')
 }
 
 /// Display width of `ch` on the terminal grid (1 or 2). CJK / full-width /
@@ -299,6 +300,7 @@ impl Screen {
         // on how many bytes have been consumed.
         let apcs = crate::graphics::extract_kitty_apcs(&self.apc_buf);
         let oscs = crate::graphics::extract_iterm_osc(&self.apc_buf);
+        let sixels = crate::graphics::extract_sixel_dcs(&self.apc_buf);
         let mut consumed = 0usize;
         for (_, end, control, payload) in &apcs {
             crate::graphics::process_kitty_apc(
@@ -320,6 +322,18 @@ impl Screen {
             );
             consumed = consumed.max(*end);
         }
+        #[cfg(feature = "sixel")]
+        for (_, end, dcs) in &sixels {
+            crate::graphics::process_sixel_dcs(
+                dcs,
+                self.cursor_row,
+                self.cursor_col,
+                &mut self.image_store,
+            );
+            consumed = consumed.max(*end);
+        }
+        #[cfg(not(feature = "sixel"))]
+        let _ = &sixels;
         // Drop the processed prefix — leave only the unprocessed tail
         // (partial APC or non-APC bytes).  Only clear the buffer when it
         // grows very large AND there's no APC start marker (\x1b_G) in it,

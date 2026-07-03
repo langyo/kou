@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>Automatisation de terminal virtuel — PTY + un vrai écran VT100 + récupération des polices à la compilation + protocoles graphiques in-band</strong></p>
+<p align="center"><strong>Automatisation de terminal virtuel — PTY + un écran VT100 + récupération des polices à la compilation + protocoles graphiques in-band</strong></p>
 
 <div align="center">
 
@@ -29,22 +29,24 @@
 ## Introduction
 
 kou est un moteur de terminal virtuel autonome — gestion PTY, un émulateur
-d'écran VT100/ANSI réel, et un rendu d'écran qui dessine réellement les glyphes.
-Il s'agit du cœur vtty extrait de l'empaqueteur tairitsu, durci en une
-bibliothèque et un CLI à part entière.
+d'écran VT100/ANSI, et un rendu d'écran qui dessine les glyphes. Il s'agit du
+cœur vtty extrait de l'empaqueteur tairitsu, durci en une bibliothèque et un
+CLI à part entière.
 
 Trois choses le distinguent d'un simple wrapper PTY :
 
-- **Un vrai écran.** Le flux d'octets est traité par l'analyseur
+- **Écran VT100.** Le flux d'octets est traité par l'analyseur
   [`vte`](https://crates.io/crates/vte), donc les déplacements de curseur CSI,
   l'effacement, le défilement et la palette SGR 16 couleurs sont respectés —
   pas le bouchon « jeter ESC au sol » du premier prototype.
-- **Récupération des polices à la compilation.** kou n'embarque pas de polices ; il récupère une famille
-  sélectionnée (Fira Code / JetBrains Mono pour le latin ; Source Han Sans /
-  Sarasa Mono / Smiley Sans pour le CJK) dans un cache partagé à la première
-  utilisation, avec des options miroir/proxy pour les réseaux restrictifs. Les
-  glyphes sont rastérisés avec `ab_glyph`, le latin avant le CJK, de sorte qu'un
-  seul rendu mélange les écritures sans tofu.
+- **Récupération des polices à la compilation.** kou pré-télécharge une police par
+  écriture — Fira Code pour le latin, Source Han Sans pour le CJK, Noto Naskh
+  Arabic pour l'arabe, Noto Sans Devanagari, Noto Sans Thai — dans un cache
+  partagé à la compilation. Surchargez les familles ou épinglez des fichiers
+  locaux via des variables d'environnement ; acheminez les téléchargements via
+  un proxy HTTP(S) (passé à reqwest) derrière un réseau restrictif. Les glyphes
+  sont rastérisés avec `ab_glyph`, en essayant chaque fonte dans l'ordre, de
+  sorte qu'un seul rendu mélange les écritures sans tofu.
 - **Graphiques in-band.** Une trame peut être rastérisée en PNG, ou décrite à un
   terminal compatible via le protocole graphique kitty (`kitty2`) ou iTerm2 —
   ainsi wezterm / kitty / iTerm2 / Ghostty affichent les vrais pixels en ligne.
@@ -103,30 +105,33 @@ if let Some(escape) = frame {
 
 ## Polices et récupération
 
-kou ne regroupe pas de polices — il récupère une famille sélectionnée dans un
-cache partagé à la compilation, avec des options miroir/proxy pour les réseaux
-restrictifs. Chaque écriture sélectionne **une** police ; les valeurs par défaut
-et alternatives sont :
+kou pré-télécharge une police par écriture dans un cache partagé à la compilation :
 
-| Écriture | Défaut | Alternatives |
-|----------|--------|--------------|
-| Latin | Fira Code | JetBrains Mono |
-| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+| Écriture | Police |
+|----------|--------|
+| Latin | Fira Code |
+| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
+| Arabic | Noto Naskh Arabic |
+| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
+| Thai (ไทย) | Noto Sans Thai |
 
-Choisissez la famille principale / CJK avec `KOU_FONT_PRIMARY` /
-`KOU_FONT_CJK`, ou épinglez des fichiers avec `KOU_FONT_PATH` /
-`KOU_FONT_CJK_PATH`. Ordre de résolution : chemin explicite → cache partagé →
-téléchargement à l'exécution (la fonctionnalité `font-fetch`, activée par
-défaut).
+Surchargez n'importe quelle famille à la compilation avec `KOU_FONT_PRIMARY` /
+`KOU_FONT_CJK` / `KOU_FONT_ARABIC` / `KOU_FONT_DEVANAGARI` /
+`KOU_FONT_THAI`, ou épinglez des fichiers locaux avec `KOU_FONT_*_PATH`. Les
+téléchargements peuvent être acheminés via un proxy HTTP(S) via
+`KOU_DOWNLOAD_PROXY` (passé directement à reqwest).
 
 | Env | Rôle |
 |-----|------|
-| `KOU_FONT_PRIMARY` | `fira-code` (par défaut) / `jetbrains-mono` |
-| `KOU_FONT_CJK` | `sourcehansans` (par défaut) / `sarasa` / `smileysans` / `none` |
-| `KOU_FONT_MIRROR` | Remplace l'hôte GitHub / jsDelivr par un miroir. |
-| `KOU_DOWNLOAD_PROXY` | Achemine les téléchargements de polices via un proxy http/https/socks. |
+| `KOU_FONT_PRIMARY` | Surcharge la famille de polices latines. |
+| `KOU_FONT_CJK` | Surcharge / désactive la police CJK (`none` pour désactiver). |
+| `KOU_FONT_ARABIC` | Surcharge / désactive la police arabe. |
+| `KOU_FONT_DEVANAGARI` | Surcharge / désactive la police Devanagari. |
+| `KOU_FONT_THAI` | Surcharge / désactive la police thaï. |
+| `KOU_FONT_MIRROR` | Remplace l'hôte de téléchargement par un miroir. |
+| `KOU_DOWNLOAD_PROXY` | Achemine les téléchargements via un proxy HTTP(S) (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Délai d'expiration par requête (par défaut 120). |
-| `KOU_SKIP_FONT_FETCH` | Désactive la récupération à l'exécution. |
+| `KOU_SKIP_FONT_FETCH` | Désactive la récupération. |
 
 ## Développement
 

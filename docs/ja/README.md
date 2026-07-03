@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>仮想端末の自動化 —— PTY + 本物の VT100 画面 + ビルド時フォント取得 + インバンドグラフィックプロトコル</strong></p>
+<p align="center"><strong>仮想端末の自動化 —— PTY + VT100 画面 + ビルド時フォント取得 + インバンドグラフィックプロトコル</strong></p>
 
 <div align="center">
 
@@ -28,23 +28,26 @@
 
 ## はじめに
 
-kou は、スタンドアロンの仮想端末エンジンです。PTY 管理、本物の VT100/ANSI 画面
-エミュレータ、そして実際にグリフを描画する画面レンダリングを備えています。
+kou は、スタンドアロンの仮想端末エンジンです。PTY 管理、VT100/ANSI 画面
+エミュレータ、そしてグリフを描画する画面レンダリングを備えています。
 tairitsu パッケージャから抽出された vtty コアを、独立したライブラリおよび CLI
 として強化したものです。
 
 単なる PTY ラッパーとは異なる 3 つの特徴:
 
-- **本物の画面。** バイトストリームは [`vte`](https://crates.io/crates/vte)
+- **VT100 画面。** バイトストリームは [`vte`](https://crates.io/crates/vte)
   パーサーによって処理されるため、CSI カーソル移動、消去、スクロール、そして
   SGR 16 色パレットが正しく反映されます。初期プロトタイプのような「ESC を無視
   する」簡易実装ではありません。
-- **ビルド時フォント取得。** kou はフォントを同梱しません。厳選されたフォントファミ
-  リー（ラテン文字向けに Fira Code / JetBrains Mono、CJK 向けに Source Han
-  Sans / Sarasa Mono / Smiley Sans）を初回使用時に共有キャッシュへ自動取得し
-  ます。制限のあるネットワーク向けにミラー/プロキシ設定も利用可能です。グリフ
-  は `ab_glyph` でラスタライズされ、ラテン文字が優先、CJK が後続するため、単一
-  のレンダリングで tofu（文字化け）なしに複数スクリプトを混在表示できます。
+- **ビルド時フォント取得。** kou はスクリプトごとに 1 つのフォントをビルド時に
+  プレダウンロードします —— ラテン文字向けに Fira Code、CJK 向けに Source Han
+  Sans、アラビア文字向けに Noto Naskh Arabic、Noto Sans Devanagari、Noto Sans
+  Thai —— 共有キャッシュへ格納されます。環境変数でフォントファミリーを上書き
+  するかローカルファイルを固定できます。また制限のあるネットワーク環境では
+  HTTP(S) プロキシ経由でダウンロードをルーティングできます（reqwest に渡され
+  ます）。グリフは `ab_glyph` でラスタライズされ、各フェイスを順番に試行する
+  ため、単一のレンダリングで tofu（文字化け）なしに複数スクリプトを混在表示
+  できます。
 - **インバンドグラフィック。** フレームを PNG にラスタライズするか、kitty
   (`kitty2`) または iTerm2 グラフィックプロトコルを通じて対応端末に記述する
   ことで、wezterm / kitty / iTerm2 / Ghostty 上で実際のピクセルをインライン
@@ -104,26 +107,33 @@ if let Some(escape) = frame {
 
 ## フォントと取得
 
-kou はフォントを同梱しません — ビルド時に厳選されたフォントファミリーを共有キャッシュへ取得し、制限のあるネットワーク向けにミラー/プロキシ設定を提供します。各スクリプトは**1 つ**のフォントを選択します。デフォルトと代替は以下のとおりです:
+kou はスクリプトごとに 1 つのフォントをビルド時に共有キャッシュへプレダウンロードします:
 
-| スクリプト | デフォルト | 代替 |
-|------------|------------|------|
-| Latin | Fira Code | JetBrains Mono |
-| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+| スクリプト | フォント |
+|------------|----------|
+| Latin | Fira Code |
+| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
+| Arabic | Noto Naskh Arabic |
+| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
+| Thai (ไทย) | Noto Sans Thai |
 
-`KOU_FONT_PRIMARY` / `KOU_FONT_CJK` でメイン / CJK フォントファミリーを選択
-するか、`KOU_FONT_PATH` / `KOU_FONT_CJK_PATH` でファイルを直接指定します。
-解決順序: 明示的なパス → 共有キャッシュ → 実行時ダウンロード
-（`font-fetch` フィーチャー、デフォルトで有効）。
+`KOU_FONT_PRIMARY` / `KOU_FONT_CJK` / `KOU_FONT_ARABIC` /
+`KOU_FONT_DEVANAGARI` / `KOU_FONT_THAI` でビルド時に任意のファミリーを上書き
+するか、`KOU_FONT_*_PATH` でローカルファイルを固定できます。ダウンロードは
+`KOU_DOWNLOAD_PROXY` (reqwest に直接渡される) を介して HTTP(S) プロキシ経由に
+ルーティングできます。
 
-| 環境変数                     | 目的                                                      |
-|------------------------------|-----------------------------------------------------------|
-| `KOU_FONT_PRIMARY`           | `fira-code` (デフォルト) / `jetbrains-mono`               |
-| `KOU_FONT_CJK`               | `sourcehansans` (デフォルト) / `sarasa` / `smileysans` / `none` |
-| `KOU_FONT_MIRROR`            | GitHub / jsDelivr ホストをミラーに置き換えます。          |
-| `KOU_DOWNLOAD_PROXY`         | フォントダウンロードを http/https/socks プロキシ経由にします。 |
-| `KOU_DOWNLOAD_TIMEOUT_SECS`  | リクエストごとのタイムアウト (デフォルト 120)。           |
-| `KOU_SKIP_FONT_FETCH`        | 実行時のフォント取得を無効にします。                      |
+| 環境変数 | 目的 |
+|----------|------|
+| `KOU_FONT_PRIMARY` | ラテン文字フォントファミリーを上書きします。 |
+| `KOU_FONT_CJK` | CJK フォントを上書き / 無効化します (`none` で無効化)。 |
+| `KOU_FONT_ARABIC` | アラビア文字フォントを上書き / 無効化します。 |
+| `KOU_FONT_DEVANAGARI` | デーヴァナーガリー フォントを上書き / 無効化します。 |
+| `KOU_FONT_THAI` | タイ文字フォントを上書き / 無効化します。 |
+| `KOU_FONT_MIRROR` | ダウンロードホストをミラーに置き換えます。 |
+| `KOU_DOWNLOAD_PROXY` | ダウンロードを HTTP(S) プロキシ経由でルーティングします (reqwest)。 |
+| `KOU_DOWNLOAD_TIMEOUT_SECS` | リクエストごとのタイムアウト (デフォルト 120)。 |
+| `KOU_SKIP_FONT_FETCH` | 取得を無効にします。 |
 
 ## 開発
 

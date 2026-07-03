@@ -2,7 +2,7 @@
 
 <h1 align="center">kou</h1>
 
-<p align="center"><strong>Automatización de terminal virtual — PTY + una pantalla VT100 real + obtención de fuentes en tiempo de compilación + protocolos gráficos in-band</strong></p>
+<p align="center"><strong>Automatización de terminal virtual — PTY + una pantalla VT100 + obtención de fuentes en tiempo de compilación + protocolos gráficos in-band</strong></p>
 
 <div align="center">
 
@@ -29,22 +29,24 @@
 ## Introducción
 
 kou es un motor de terminal virtual autónomo — gestión de PTY, un emulador de
-pantalla VT100/ANSI real, y renderizado de pantalla que realmente dibuja los
-glifos. Es el núcleo vtty extraído del empaquetador tairitsu, reforzado como
-librería y CLI propios.
+pantalla VT100/ANSI, y renderizado de pantalla que dibuja los glifos. Es el
+núcleo vtty extraído del empaquetador tairitsu, reforzado como librería y CLI
+propios.
 
 Tres cosas lo distinguen de un simple envoltorio de PTY:
 
-- **Una pantalla real.** El flujo de bytes pasa por el analizador [`vte`](https://crates.io/crates/vte),
+- **Pantalla VT100.** El flujo de bytes pasa por el analizador [`vte`](https://crates.io/crates/vte),
   por lo que los movimientos CSI del cursor, el borrado, el desplazamiento y la
   paleta SGR de 16 colores se respetan — no es el stub de "tirar ESC al suelo"
   del primer prototipo.
-- **Obtención de fuentes en tiempo de compilación.** kou no incluye fuentes; obtiene una familia
-  seleccionada (Fira Code / JetBrains Mono para latín; Source Han Sans / Sarasa
-  Mono / Smiley Sans para CJK) en una caché compartida en el primer uso, con
-  opciones de mirror/proxy para redes restrictivas. Los glifos se rasterizan con
-  `ab_glyph`, latín antes de CJK, de modo que un solo renderizado mezcla
-  escrituras sin tofu.
+- **Obtención de fuentes en tiempo de compilación.** kou pre-descarga una fuente por
+  escritura — Fira Code para latín, Source Han Sans para CJK, Noto Naskh Arabic
+  para árabe, Noto Sans Devanagari, Noto Sans Thai — en una caché compartida en
+  tiempo de compilación. Sobrescribe las familias o fija archivos locales mediante
+  variables de entorno; enruta las descargas a través de un proxy HTTP(S) (pasado
+  a reqwest) cuando estés tras una red restrictiva. Los glifos se rasterizan con
+  `ab_glyph`, probando cada tipografía en orden, de modo que un solo renderizado
+  mezcla escrituras sin tofu.
 - **Gráficos in-band.** Un fotograma puede rasterizarse a PNG o describirse a
   un terminal compatible mediante el protocolo gráfico kitty (`kitty2`) o
   iTerm2 — así wezterm / kitty / iTerm2 / Ghostty renderizan los píxeles
@@ -104,29 +106,33 @@ if let Some(escape) = frame {
 
 ## Fuentes y obtención
 
-kou no incluye fuentes — obtiene una familia seleccionada en una caché
-compartida en tiempo de compilación, con opciones de mirror/proxy para redes
-restrictivas. Cada escritura selecciona **una** fuente; los predeterminados y
-alternativas son:
+kou pre-descarga una fuente por escritura en una caché compartida en tiempo de compilación:
 
-| Escritura | Predeterminado | Alternativas |
-|-----------|----------------|--------------|
-| Latin | Fira Code | JetBrains Mono |
-| CJK | Source Han Sans SC (思源黑体) | Sarasa Mono SC (更纱黑体), Smiley Sans (得意黑), `none` |
+| Escritura | Fuente |
+|-----------|--------|
+| Latin | Fira Code |
+| CJK (中文 · 日本語 · 한국어) | Source Han Sans SC (思源黑体) |
+| Arabic | Noto Naskh Arabic |
+| Devanagari (हिन्दी · मराठी) | Noto Sans Devanagari |
+| Thai (ไทย) | Noto Sans Thai |
 
-Elige la familia primaria / CJK con `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`, o fija
-archivos con `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`. Orden de resolución:
-ruta explícita → caché compartida → descarga en tiempo de ejecución (la
-característica `font-fetch`, habilitada por defecto).
+Sobrescribe cualquier familia en tiempo de compilación con `KOU_FONT_PRIMARY` /
+`KOU_FONT_CJK` / `KOU_FONT_ARABIC` / `KOU_FONT_DEVANAGARI` /
+`KOU_FONT_THAI`, o fija archivos locales con `KOU_FONT_*_PATH`. Las descargas
+pueden enrutarse a través de un proxy HTTP(S) vía `KOU_DOWNLOAD_PROXY` (pasado
+directamente a reqwest).
 
-| Variable de entorno | Propósito |
-|---------------------|-----------|
-| `KOU_FONT_PRIMARY` | `fira-code` (predeterminado) / `jetbrains-mono` |
-| `KOU_FONT_CJK` | `sourcehansans` (predeterminado) / `sarasa` / `smileysans` / `none` |
-| `KOU_FONT_MIRROR` | Sustituye el host de GitHub / jsDelivr por un mirror. |
-| `KOU_DOWNLOAD_PROXY` | Enruta las descargas de fuentes a través de un proxy http/https/socks. |
+| Env | Propósito |
+|-----|-----------|
+| `KOU_FONT_PRIMARY` | Sobrescribe la familia de fuentes latinas. |
+| `KOU_FONT_CJK` | Sobrescribe / deshabilita la fuente CJK (`none` para deshabilitar). |
+| `KOU_FONT_ARABIC` | Sobrescribe / deshabilita la fuente árabe. |
+| `KOU_FONT_DEVANAGARI` | Sobrescribe / deshabilita la fuente Devanagari. |
+| `KOU_FONT_THAI` | Sobrescribe / deshabilita la fuente tailandesa. |
+| `KOU_FONT_MIRROR` | Sustituye el host de descarga por un mirror. |
+| `KOU_DOWNLOAD_PROXY` | Enruta las descargas a través de un proxy HTTP(S) (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Tiempo de espera por solicitud (predeterminado 120). |
-| `KOU_SKIP_FONT_FETCH` | Deshabilita la obtención en tiempo de ejecución. |
+| `KOU_SKIP_FONT_FETCH` | Deshabilita la obtención. |
 
 ## Desarrollo
 

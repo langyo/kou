@@ -52,7 +52,14 @@ impl GraphicsProtocol {
 
     /// `true` if [`encode`] produces a real inband image for this protocol.
     pub fn supported(self) -> bool {
-        matches!(self, GraphicsProtocol::Kitty | GraphicsProtocol::Iterm)
+        match self {
+            GraphicsProtocol::Kitty | GraphicsProtocol::Iterm => true,
+            #[cfg(feature = "sixel")]
+            GraphicsProtocol::Sixel => true,
+            #[cfg(not(feature = "sixel"))]
+            GraphicsProtocol::Sixel => false,
+            GraphicsProtocol::Off => false,
+        }
     }
 
     pub fn label(self) -> &'static str {
@@ -90,6 +97,9 @@ pub fn encode(protocol: GraphicsProtocol, req: &GraphicsRequest<'_>) -> Option<S
     match protocol {
         GraphicsProtocol::Kitty => Some(encode_kitty(req)),
         GraphicsProtocol::Iterm => Some(encode_iterm(req)),
+        #[cfg(feature = "sixel")]
+        GraphicsProtocol::Sixel => encode_sixel(req),
+        #[cfg(not(feature = "sixel"))]
         GraphicsProtocol::Sixel | GraphicsProtocol::Off => None,
     }
 }
@@ -211,7 +221,116 @@ impl InlineImageStore {
         self.images.get(&id)
     }
 
-    #[cfg(test)]
+// ── sixel (DCS) ──────────────────────────────────────────────────
+
+/// Encode an image to SIXEL using icy_sixel. Behind the `sixel` feature.
+#[cfg(feature = "sixel")]
+fn encode_sixel(req: &GraphicsRequest<'_>) -> Option<String> {
+    use icy_sixel::SixelImage;
+    // Load the PNG bytes into an image, convert to RGBA, then encode.
+    let img = image::load_from_memory(req.bytes).ok()?;
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    let sixel_img = SixelImage::from_rgba(rgba.into_raw(), w, h);
+    match sixel_img.encode() {
+        Ok(s) => Some(s),
+        Err(e) => {
+            eprintln!("[kou] sixel encode failed: {e}");
+            None
+        }
+    }
+}
+
+/// Scan `data` for SIXEL DCS sequences (`\x1bP…q…\x1b\\`) and return each as
+/// `(start_byte, end_byte, full_dcs_bytes)`. The full sequence (including the
+/// `\x1bP` introducer and `\x1b\\` terminator) is returned so it can be passed
+/// directly to `icy_sixel::SixelImage::decode`.
+pub fn extract_sixel_dcs(data: &[u8]) -> Vec<(usize, usize, Vec<u8>)> {
+    let mut results = Vec::new();
+    let mut i = 0;
+    while i + 1 < data.len() {
+        // DCS introducer: ESC P (0x1b 0x50)
+        if data[i] == 0x1b && data[i + 1] == b'P' {
+            let start = i;
+            let mut j = i + 2;
+            // Skip optional parameter bytes (digits, semicolons) until the
+            // command byte.  For sixel the command byte is 'q'.
+            let mut is_sixel = false;
+            while j < data.len() {
+                let b = data[j];
+                if b == 0x1b {
+                    // Possible ST (ESC \)
+                    if j + 1 < data.len() && data[j + 1] == b'\\' {
+                        if is_sixel {
+                            let full = data[start..=j + 1].to_vec();
+                            results.push((start, j + 2, full));
+                        }
+                        i = j + 2;
+                        break;
+                    }
+                    // Lone ESC inside DCS — not ST, skip
+                }
+                if b == b'q' && !is_sixel {
+                    is_sixel = true;
+                }
+                j += 1;
+            }
+            if j >= data.len() {
+                break;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    results
+}
+
+/// Decode a SIXEL DCS sequence and insert the resulting image into `store`.
+#[cfg(feature = "sixel")]
+pub fn process_sixel_dcs(
+    dcs_bytes: &[u8],
+    cursor_row: usize,
+    cursor_col: usize,
+    store: &mut InlineImageStore,
+) {
+    use icy_sixel::SixelImage;
+    let Ok(sixel_img) = SixelImage::decode(dcs_bytes) else {
+        eprintln!("[kou] sixel decode failed");
+        return;
+    };
+    // Convert RGBA → PNG for the InlineImageStore (unified render path).
+    use image::{ImageBuffer, Rgba, ImageEncoder};
+    let img: ImageBuffer<Rgba<u8>, Vec<u8>> = match ImageBuffer::from_raw(
+        sixel_img.width,
+        sixel_img.height,
+        sixel_img.pixels.clone(),
+    ) {
+        Some(img) => img,
+        None => return,
+    };
+    let mut png = Vec::new();
+    if image::codecs::png::PngEncoder::new(&mut png)
+        .write_image(img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8)
+        .is_err()
+    {
+        return;
+    }
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static SEQ: AtomicU32 = AtomicU32::new(200_000);
+    let id = SEQ.fetch_add(1, Ordering::Relaxed);
+    store.insert(InlineImage { id, data: png });
+    store.place(Placement {
+        image_id: id,
+        row: cursor_row,
+        col: cursor_col,
+        pixel_w: sixel_img.width,
+        pixel_h: sixel_img.height,
+        cells_w: 1, // Sixel doesn't specify cell dimensions; renderer uses pixel dims
+        cells_h: 1,
+    });
+}
+
+#[cfg(test)]
     pub fn len(&self) -> usize {
         self.placements.len()
     }

@@ -1,26 +1,26 @@
 //! Font discovery & loading — build-time font fetching.
 //!
-//! kou does not ship fonts. Instead, it fetches a curated font family into a
+//! kou does not ship fonts. Instead, it fetches one font per script into a
 //! shared cache (once, then cached across runs) and locates it transparently,
 //! so a consumer never has to install fonts by hand. Sources are public
 //! (GitHub / jsDelivr CDN); `KOU_FONT_MIRROR` and `KOU_DOWNLOAD_PROXY` route
 //! the fetch through a mirror or forward proxy, which is essential behind
 //! restrictive networks.
 //!
-//! A [`FontSet`] pairs a primary monospace face (for Latin glyphs) with an
-//! optional CJK fallback (思源黑体 / 更纱黑体 / 得意黑 / Source Han / Sarasa /
-//! Smiley Sans). [`FontCache::load`] reads them into `ab_glyph` font vectors and
-//! [`FontCache::glyph_for`] picks the first face that actually contains a given
-//! codepoint — so a single render can mix Latin and CJK without tofu.
+//! A [`FontSet`] pairs a primary monospace face (Latin) with an ordered list
+//! of fallback faces (CJK, Arabic, Devanagari, Thai). [`FontCache::load`]
+//! reads them into `ab_glyph` font vectors and [`FontCache::glyph_for`] picks
+//! the first face that actually contains a given codepoint — so a single
+//! render can mix Latin, CJK, Arabic and more without tofu.
 //!
-//! Resolution order (mirrors shirabe's browser resolver):
-//! 1. Explicit file paths — `KOU_FONT_PATH` (primary) and `KOU_FONT_CJK_PATH`.
+//! Resolution order:
+//! 1. Explicit file paths — `KOU_FONT_PATH` (primary) and `KOU_FONT_*_PATH`.
 //! 2. A previously-fetched copy in the shared cache.
 //! 3. A runtime download (the `font-fetch` feature) from the registry.
 //!
 //! Knobs: `KOU_FONT_MIRROR`, `KOU_DOWNLOAD_PROXY`, `KOU_DOWNLOAD_TIMEOUT_SECS`,
-//! `KOU_SKIP_FONT_FETCH`, `KOU_FONT_PRIMARY`, `KOU_FONT_CJK` (override the
-//! registry families).
+//! `KOU_SKIP_FONT_FETCH`, `KOU_FONT_PRIMARY`, `KOU_FONT_CJK`,
+//! `KOU_FONT_ARABIC`, `KOU_FONT_DEVANAGARI`, `KOU_FONT_THAI`.
 
 use std::path::{Path, PathBuf};
 
@@ -39,6 +39,12 @@ pub enum FontFamily {
     SarasaMonoSC,
     /// Smiley Sans (得意黑) — CJK display face.
     SmileySans,
+    /// Noto Naskh Arabic — Arabic script.
+    NotoNaskhArabic,
+    /// Noto Sans Devanagari — Devanagari script (Hindi, Marathi, …).
+    NotoSansDevanagari,
+    /// Noto Sans Thai — Thai script.
+    NotoSansThai,
 }
 
 impl FontFamily {
@@ -69,6 +75,42 @@ impl FontFamily {
         }
     }
 
+    /// The family selected for the Arabic fallback slot.
+    pub fn arabic_from_env() -> Option<Self> {
+        match std::env::var("KOU_FONT_ARABIC")
+            .ok()
+            .map(|s| s.trim().to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("none") | Some("off") => None,
+            _ => Some(FontFamily::NotoNaskhArabic),
+        }
+    }
+
+    /// The family selected for the Devanagari fallback slot.
+    pub fn devanagari_from_env() -> Option<Self> {
+        match std::env::var("KOU_FONT_DEVANAGARI")
+            .ok()
+            .map(|s| s.trim().to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("none") | Some("off") => None,
+            _ => Some(FontFamily::NotoSansDevanagari),
+        }
+    }
+
+    /// The family selected for the Thai fallback slot.
+    pub fn thai_from_env() -> Option<Self> {
+        match std::env::var("KOU_FONT_THAI")
+            .ok()
+            .map(|s| s.trim().to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("none") | Some("off") => None,
+            _ => Some(FontFamily::NotoSansThai),
+        }
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             FontFamily::FiraCode => "fira-code",
@@ -76,6 +118,9 @@ impl FontFamily {
             FontFamily::SourceHanSansSC => "source-han-sans-sc",
             FontFamily::SarasaMonoSC => "sarasa-mono-sc",
             FontFamily::SmileySans => "smiley-sans",
+            FontFamily::NotoNaskhArabic => "noto-naskh-arabic",
+            FontFamily::NotoSansDevanagari => "noto-sans-devanagari",
+            FontFamily::NotoSansThai => "noto-sans-thai",
         }
     }
 
@@ -87,6 +132,22 @@ impl FontFamily {
             FontFamily::SourceHanSansSC => "SourceHanSansSC-Regular.otf",
             FontFamily::SarasaMonoSC => "SarasaMonoSC-Regular.ttf",
             FontFamily::SmileySans => "SmileySans-Regular.ttf",
+            FontFamily::NotoNaskhArabic => "NotoNaskhArabic-Regular.ttf",
+            FontFamily::NotoSansDevanagari => "NotoSansDevanagari-Regular.ttf",
+            FontFamily::NotoSansThai => "NotoSansThai-Regular.ttf",
+        }
+    }
+
+    /// Which `KOU_FONT_*_PATH` env var overrides this family's file location.
+    fn path_env(self) -> Option<&'static str> {
+        match self {
+            FontFamily::FiraCode | FontFamily::JetBrainsMono => Some("KOU_FONT_PATH"),
+            FontFamily::SourceHanSansSC
+            | FontFamily::SarasaMonoSC
+            | FontFamily::SmileySans => Some("KOU_FONT_CJK_PATH"),
+            FontFamily::NotoNaskhArabic => Some("KOU_FONT_ARABIC_PATH"),
+            FontFamily::NotoSansDevanagari => Some("KOU_FONT_DEVANAGARI_PATH"),
+            FontFamily::NotoSansThai => Some("KOU_FONT_THAI_PATH"),
         }
     }
 
@@ -110,6 +171,15 @@ impl FontFamily {
             FontFamily::SmileySans => {
                 "https://cdn.jsdelivr.net/gh/atelier-anchor/smiley-sans@2.0.1/fonts/SmileySans-Regular.ttf"
             }
+            FontFamily::NotoNaskhArabic => {
+                "https://cdn.jsdelivr.net/gh/notofonts/arabic@main/fonts/NotoNaskhArabic/full/ttf/NotoNaskhArabic-Regular.ttf"
+            }
+            FontFamily::NotoSansDevanagari => {
+                "https://cdn.jsdelivr.net/gh/notofonts/devanagari@main/fonts/NotoSansDevanagari/full/ttf/NotoSansDevanagari-Regular.ttf"
+            }
+            FontFamily::NotoSansThai => {
+                "https://cdn.jsdelivr.net/gh/notofonts/thai@main/fonts/NotoSansThai/full/ttf/NotoSansThai-Regular.ttf"
+            }
         };
         if let Ok(mirror) = std::env::var("KOU_FONT_MIRROR") {
             let mirror = mirror.trim_end_matches('/');
@@ -123,20 +193,39 @@ impl FontFamily {
     }
 }
 
-/// A primary face plus an optional CJK fallback.
+/// A primary face plus an ordered list of per-script fallbacks.
 #[derive(Debug, Clone)]
 pub struct FontSet {
     pub primary: FontFamily,
-    pub cjk: Option<FontFamily>,
+    pub fallbacks: Vec<FontFamily>,
 }
 
 impl FontSet {
-    /// The default set, honouring `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`.
+    /// The default set, honouring `KOU_FONT_PRIMARY` / `KOU_FONT_CJK` /
+    /// `KOU_FONT_ARABIC` / `KOU_FONT_DEVANAGARI` / `KOU_FONT_THAI`.
     pub fn from_env() -> Self {
+        let mut fallbacks = Vec::new();
+        if let Some(cjk) = FontFamily::cjk_from_env() {
+            fallbacks.push(cjk);
+        }
+        if let Some(ar) = FontFamily::arabic_from_env() {
+            fallbacks.push(ar);
+        }
+        if let Some(dev) = FontFamily::devanagari_from_env() {
+            fallbacks.push(dev);
+        }
+        if let Some(thai) = FontFamily::thai_from_env() {
+            fallbacks.push(thai);
+        }
         FontSet {
             primary: FontFamily::primary_from_env(),
-            cjk: FontFamily::cjk_from_env(),
+            fallbacks,
         }
+    }
+
+    /// Iterate primary then fallbacks.
+    fn all(&self) -> impl Iterator<Item = FontFamily> + '_ {
+        std::iter::once(self.primary).chain(self.fallbacks.iter().copied())
     }
 }
 
@@ -174,19 +263,9 @@ fn cache_dir() -> Option<PathBuf> {
 /// Returns `None` when the `font-fetch` feature is disabled and no cached copy
 /// or explicit path exists, so callers can fall back to a built-in font.
 pub fn resolve_family(family: FontFamily) -> Option<PathBuf> {
-    // 1. Explicit override (only meaningful for the primary slot, but cheap).
-    if family == FontFamily::primary_from_env() {
-        if let Ok(p) = std::env::var("KOU_FONT_PATH") {
-            let path = PathBuf::from(&p);
-            if path.exists() {
-                return Some(path);
-            }
-        }
-    }
-    if family == FontFamily::SarasaMonoSC
-        || matches!(family, FontFamily::SourceHanSansSC | FontFamily::SmileySans)
-    {
-        if let Ok(p) = std::env::var("KOU_FONT_CJK_PATH") {
+    // 1. Explicit override via the per-family path env var.
+    if let Some(env) = family.path_env() {
+        if let Ok(p) = std::env::var(env) {
             let path = PathBuf::from(&p);
             if path.exists() {
                 return Some(path);
@@ -270,11 +349,8 @@ impl FontCache {
     /// are skipped (with a warning), so a missing CJK face degrades gracefully.
     pub fn load(set: &FontSet, px: f32) -> Self {
         let mut faces = Vec::new();
-        if let Some(path) = resolve_family(set.primary) {
-            push_face(&mut faces, &path, px);
-        }
-        if let Some(cjk) = set.cjk {
-            if let Some(path) = resolve_family(cjk) {
+        for family in set.all() {
+            if let Some(path) = resolve_family(family) {
                 push_face(&mut faces, &path, px);
             }
         }
@@ -551,19 +627,9 @@ async fn download_async(family: FontFamily, dest: &Path) -> anyhow::Result<()> {
 
 #[cfg(feature = "font-fetch")]
 async fn resolve_family_async(family: FontFamily) -> Option<PathBuf> {
-    // 1. Explicit path override.
-    if family == FontFamily::primary_from_env() {
-        if let Ok(p) = std::env::var("KOU_FONT_PATH") {
-            let path = PathBuf::from(&p);
-            if path.exists() {
-                return Some(path);
-            }
-        }
-    }
-    if family == FontFamily::SarasaMonoSC
-        || matches!(family, FontFamily::SourceHanSansSC | FontFamily::SmileySans)
-    {
-        if let Ok(p) = std::env::var("KOU_FONT_CJK_PATH") {
+    // 1. Explicit path override via the per-family path env var.
+    if let Some(env) = family.path_env() {
+        if let Ok(p) = std::env::var(env) {
             let path = PathBuf::from(&p);
             if path.exists() {
                 return Some(path);
@@ -596,11 +662,8 @@ impl FontCache {
     #[cfg(feature = "font-fetch")]
     pub async fn load_async(set: &FontSet, px: f32) -> Self {
         let mut faces = Vec::new();
-        if let Some(path) = resolve_family_async(set.primary).await {
-            push_face(&mut faces, &path, px);
-        }
-        if let Some(cjk) = set.cjk {
-            if let Some(path) = resolve_family_async(cjk).await {
+        for family in set.all() {
+            if let Some(path) = resolve_family_async(family).await {
                 push_face(&mut faces, &path, px);
             }
         }
@@ -629,6 +692,9 @@ mod tests {
             FontFamily::SourceHanSansSC,
             FontFamily::SarasaMonoSC,
             FontFamily::SmileySans,
+            FontFamily::NotoNaskhArabic,
+            FontFamily::NotoSansDevanagari,
+            FontFamily::NotoSansThai,
         ]
         .iter()
         .map(|f| f.cache_name())
