@@ -2949,8 +2949,8 @@ name = "malkuth"
 version = "0.1.0"
 
 [[patch.unused]]
-name = "hifumi"
-version = "0.1.1"
+name = "evernight"
+version = "0.1.0"
 
 [[patch.unused]]
 name = "aoba"
@@ -3001,8 +3001,8 @@ name = "tairitsu-vdom"
 version = "0.5.13"
 
 [[patch.unused]]
-name = "arona"
-version = "0.1.0"
+name = "hifumi"
+version = "0.1.1"
 
 [[patch.unused]]
 name = "tairitsu"
@@ -3033,7 +3033,7 @@ name = "tairitsu-web"
 version = "0.5.13"
 
 [[patch.unused]]
-name = "evernight"
+name = "arona"
 version = "0.1.0"
 
 [[patch.unused]]
