@@ -1,0 +1,146 @@
+<p align="center"><img src="https://raw.githubusercontent.com/celestia-island/kou/master/docs/logo.webp" alt="kou" width="240" /></p>
+
+<h1 align="center">kou</h1>
+
+<p align="center"><strong>Virtual terminal engine</strong></p>
+
+<div align="center">
+
+[![License: SySL-1.0](https://img.shields.io/badge/License-SySL--1.0-blue.svg)](./LICENSE)
+[![Checks](https://img.shields.io/github/actions/workflow/status/celestia-island/kou/checks.yml)](https://github.com/celestia-island/kou/actions/workflows/checks.yml)
+[![Docs](https://img.shields.io/badge/docs-kou.docs.celestia.world-blue)](https://kou.docs.celestia.world)
+[![docs.rs](https://docs.rs/kou/badge.svg)](https://docs.rs/kou)
+[![docs.rs](https://docs.rs/kou/badge.svg)](https://docs.rs/kou)
+
+</div>
+
+<div align="center">
+
+**English** ·
+[简体中文](./docs/zhs/README.md) ·
+[繁體中文](./docs/zht/README.md) ·
+[日本語](./docs/ja/README.md) ·
+[한국어](./docs/ko/README.md) ·
+[Français](./docs/fr/README.md) ·
+[Español](./docs/es/README.md) ·
+[Русский](./docs/ru/README.md) ·
+[العربية](./docs/ar/README.md)
+
+</div>
+
+## Introduction
+
+kou is a standalone virtual-terminal engine — PTY management, a VT100/ANSI
+screen emulator, and screen rendering that draws glyphs. It is the vtty
+core extracted from the tairitsu packager, hardened into a library and CLI of its
+own.
+
+Three things set it apart from a bare PTY wrapper:
+
+- **VT100 screen.** The byte stream is run through the [`vte`](https://crates.io/crates/vte)
+  parser, so CSI cursor moves, erase, scroll and the SGR 16-colour palette are
+  honoured — not the "drop ESC on the floor" stub of the early prototype.
+- **Build-time font fetching.** kou pre-downloads one font per script into a
+  shared cache at build time. Override families or pin local files via
+  environment variables; route downloads through an HTTP(S) proxy when behind
+  a restrictive network. See [Fonts & fetching](#fonts--fetching) for the
+  full list.
+- **Inband graphics.** A frame can be rasterised to PNG, or described to a
+  capable terminal through the kitty (`kitty2`) or iTerm2 graphics protocol — so
+  wezterm / kitty / iTerm2 / Ghostty render the real pixels inline.
+
+## Quick Start
+
+### CLI
+
+```bash
+# Launch a command in a virtual terminal and drive it from a REPL.
+kou launch bash --cols 80 --rows 24
+# > echo hello
+# > screen        # prints the current screen text
+```
+
+### Library
+
+```rust
+use kou::{FontCache, FontSet, VttyManager, render_png};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let mgr = VttyManager::new();
+    let id = mgr.launch("bash", None, 80, 24).await?;
+    mgr.send_text(&id, "echo hello\n").await?;
+
+    // Plain text.
+    println!("{}", mgr.screenshot(&id).await?);
+
+    // A real PNG, rendered with auto-fetched fonts (Latin + CJK fallback).
+    let fonts = FontCache::load(&FontSet::from_env(), 16.0);
+    let screen = mgr.screen(&id).await?;
+    let png = render_png(&screen, &fonts, 16.0)?;
+    std::fs::write("screen.png", png)?;
+    Ok(())
+}
+```
+
+## Graphics protocols
+
+| `KOU_GRAPHICS` | Protocol | Terminals |
+|----------------|----------|-----------|
+| `kitty` / `kitty2` | kitty APC graphics | kitty, wezterm, Ghostty |
+| `iterm` / `iterm2` | OSC 1337 inline image | iTerm2, wezterm |
+| `sixel` | DCS sixel | (placeholder — needs a rasterizer) |
+| `off` (default) | none — render a PNG out of band | all |
+
+```rust
+use kou::{FontCache, FontSet, GraphicsProtocol, VttyManager, render_graphics};
+let frame = render_graphics(&screen, &FontCache::load(&FontSet::from_env(), 16.0), 16.0,
+                            GraphicsProtocol::from_env());
+if let Some(escape) = frame {
+    print!("{escape}"); // capable terminals render the pixels inline
+}
+```
+
+## Fonts & fetching
+
+kou pre-downloads one font per script into a shared cache at build time:
+
+| Script | Font |
+|--------|------|
+| Latin | [Fira Code](https://github.com/tonsky/FiraCode) |
+| CJK (中文 · 日本語 · 한국어) | [Source Han Sans SC](https://github.com/adobe-fonts/source-han-sans) (思源黑体) |
+
+Override any family at build time with `KOU_FONT_PRIMARY` / `KOU_FONT_CJK`, or
+pin local files with `KOU_FONT_PATH` / `KOU_FONT_CJK_PATH`. Downloads can be
+routed through an HTTP(S) proxy via `KOU_DOWNLOAD_PROXY` (passed directly to
+reqwest).
+
+| Env | Purpose |
+|-----|---------|
+| `KOU_FONT_PRIMARY` | Override the Latin font family. |
+| `KOU_FONT_CJK` | Override / disable the CJK font (`none` to disable). |
+| `KOU_FONT_MIRROR` | Substitute the download host with a mirror. |
+| `KOU_DOWNLOAD_PROXY` | Route downloads through an HTTP(S) proxy (reqwest). |
+| `KOU_DOWNLOAD_TIMEOUT_SECS` | Per-request timeout (default 120). |
+| `KOU_SKIP_FONT_FETCH` | Disable fetching. |
+
+## Development
+
+```bash
+cargo check --all-features
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+```
+
+
+<details>
+<summary>Screenshots</summary>
+
+<p align="center"><img src="res/neofetch_campbell.png" alt="kou snapshot" height="400" /></p>
+
+</details>
+
+## License
+
+SySL-1.0 (Synthetic Source License). See [LICENSE](./LICENSE).

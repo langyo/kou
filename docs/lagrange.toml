@@ -1,0 +1,7 @@
+[site]
+title = "Kou"
+description = "Virtual terminal automation — PTY + VT100 + image protocols + ort-style fonts"
+
+[languages]
+default = "en"
+order = ["en", "zhs", "zht", "ja", "ko", "fr", "es", "ru", "ar"]

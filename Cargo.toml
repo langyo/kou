@@ -1,0 +1,63 @@
+[package]
+name = "kou"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["langyo <langyo.china@gmail.com>"]
+license-file = "LICENSE"
+readme = "README.md"
+description = "Virtual terminal engine — PTY + VT100 + image protocols"
+repository = "https://github.com/celestia-island/kou"
+keywords = ["terminal", "vtty", "pty", "vt100", "automation"]
+categories = ["command-line-interface", "os::unix-apis", "multimedia::images"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lib]
+name = "kou"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kou"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "^1", features = ["rt-multi-thread", "process", "macros", "time", "sync", "io-util"] }
+serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
+anyhow = "^1"
+tracing = "^0.1"
+tracing-subscriber = { version = "^0.3", features = ["env-filter"] }
+clap = { version = "^4", features = ["derive"] }
+# PTY
+portable-pty = "^0.8"
+# VT100 parsing
+vte = "^0.13"
+# Terminal rendering (PNG)
+image = "^0.25"
+ab_glyph = "^0.2"
+# Graphics protocols (kitty / iTerm2): base64 framing.
+base64 = "^0.22"
+# East-Asian character width — CJK glyphs are double-wide on the terminal grid.
+unicode-width = "^0.2"
+# Font fetcher: reqwest without a TLS provider; we install ring below
+# so the provider is explicit (and so the same binary can opt out of fetching).
+reqwest = { version = "^0.13", features = ["blocking", "rustls-no-provider"], default-features = false, optional = true }
+rustls = { version = "^0.23", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }
+# MCP (optional, for standalone MCP server)
+rmcp = { version = "^0.1", optional = true }
+# Sixel decode/encode (optional — adds icy_sixel + quantette).
+icy_sixel = { version = "^0.5", optional = true }
+
+[features]
+default = ["font-fetch"]
+# Build/runtime font fetching (FiraCode / Source Han / Sarasa / SmileySans via a
+# configurable mirror). Off => callers must supply font paths themselves.
+font-fetch = ["dep:reqwest", "dep:rustls"]
+# Sixel graphics protocol support (decode DCS sixel → image, encode image → sixel).
+sixel = ["dep:icy_sixel"]
+mcp = ["rmcp"]
+
+[dev-dependencies]
+serial_test = "^3"
