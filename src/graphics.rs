@@ -99,6 +99,8 @@ pub fn encode(protocol: GraphicsProtocol, req: &GraphicsRequest<'_>) -> Option<S
         GraphicsProtocol::Iterm => Some(encode_iterm(req)),
         #[cfg(feature = "sixel")]
         GraphicsProtocol::Sixel => encode_sixel(req),
+        #[cfg(feature = "sixel")]
+        GraphicsProtocol::Off => None,
         #[cfg(not(feature = "sixel"))]
         GraphicsProtocol::Sixel | GraphicsProtocol::Off => None,
     }
@@ -232,7 +234,7 @@ fn encode_sixel(req: &GraphicsRequest<'_>) -> Option<String> {
     let img = image::load_from_memory(req.bytes).ok()?;
     let rgba = img.to_rgba8();
     let (w, h) = rgba.dimensions();
-    let sixel_img = SixelImage::from_rgba(rgba.into_raw(), w, h);
+    let sixel_img = SixelImage::from_rgba(rgba.into_raw(), w as usize, h as usize);
     match sixel_img.encode() {
         Ok(s) => Some(s),
         Err(e) => {
@@ -302,7 +304,7 @@ pub fn process_sixel_dcs(
     // Convert RGBA → PNG for the InlineImageStore (unified render path).
     use image::{ImageBuffer, ImageEncoder, Rgba};
     let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        match ImageBuffer::from_raw(sixel_img.width, sixel_img.height, sixel_img.pixels.clone()) {
+        match ImageBuffer::from_raw(sixel_img.width as u32, sixel_img.height as u32, sixel_img.pixels.clone()) {
             Some(img) => img,
             None => return,
         };
@@ -326,8 +328,8 @@ pub fn process_sixel_dcs(
         image_id: id,
         row: cursor_row,
         col: cursor_col,
-        pixel_w: sixel_img.width,
-        pixel_h: sixel_img.height,
+        pixel_w: sixel_img.width as u32,
+        pixel_h: sixel_img.height as u32,
         cells_w: 1, // Sixel doesn't specify cell dimensions; renderer uses pixel dims
         cells_h: 1,
     });
