@@ -10,7 +10,6 @@
 [![Checks](https://img.shields.io/github/actions/workflow/status/celestia-island/kou/checks.yml)](https://github.com/celestia-island/kou/actions/workflows/checks.yml)
 [![Docs](https://img.shields.io/badge/docs-kou.docs.celestia.world-blue)](https://kou.docs.celestia.world)
 [![docs.rs](https://docs.rs/kou/badge.svg)](https://docs.rs/kou)
-[![docs.rs](https://docs.rs/kou/badge.svg)](https://docs.rs/kou)
 
 </div>
 
