@@ -6,10 +6,9 @@
 
 <div align="center">
 
-[![License: SySL-1.0](https://img.shields.io/badge/License-SySL--1.0-blue.svg)](./LICENSE)
+[![License: SySL-1.0](https://img.shields.io/badge/License-SySL--1.0-blue.svg)](https://sysl.celestia.world)
 [![Checks](https://img.shields.io/github/actions/workflow/status/celestia-island/kou/checks.yml)](https://github.com/celestia-island/kou/actions/workflows/checks.yml)
 [![Docs](https://img.shields.io/badge/docs-kou.docs.celestia.world-blue)](https://kou.docs.celestia.world)
-[![docs.rs](https://docs.rs/kou/badge.svg)](https://docs.rs/kou)
 [![docs.rs](https://docs.rs/kou/badge.svg)](https://docs.rs/kou)
 
 </div>
@@ -143,4 +142,4 @@ cargo test --all-features
 
 ## License
 
-SySL-1.0 (Synthetic Source License). See [LICENSE](./LICENSE).
+SySL-1.0 (Synthetic Source License). See [LICENSE](https://sysl.celestia.world).

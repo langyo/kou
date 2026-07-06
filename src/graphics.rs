@@ -303,11 +303,14 @@ pub fn process_sixel_dcs(
     };
     // Convert RGBA → PNG for the InlineImageStore (unified render path).
     use image::{ImageBuffer, ImageEncoder, Rgba};
-    let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        match ImageBuffer::from_raw(sixel_img.width as u32, sixel_img.height as u32, sixel_img.pixels.clone()) {
-            Some(img) => img,
-            None => return,
-        };
+    let img: ImageBuffer<Rgba<u8>, Vec<u8>> = match ImageBuffer::from_raw(
+        sixel_img.width as u32,
+        sixel_img.height as u32,
+        sixel_img.pixels.clone(),
+    ) {
+        Some(img) => img,
+        None => return,
+    };
     let mut png = Vec::new();
     if image::codecs::png::PngEncoder::new(&mut png)
         .write_image(
