@@ -2,6 +2,11 @@
 //! delegates to. Each test spawns a *real* child process in a PTY, drives it,
 //! and reads the rendered screen back — so a pass means the launch / send /
 //! query / kill surface actually works on this host.
+//!
+//! These tests spawn Unix shell commands (`echo`, `bash`, `printf`, `sleep`),
+//! so they are compiled out on non-Unix targets.
+
+#![cfg(unix)]
 
 use std::time::{Duration, Instant};
 
