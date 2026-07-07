@@ -96,8 +96,9 @@ fn kitty_apc_renders_visible_image() {
         bg
     );
 
-    std::fs::write("/tmp/kitty_e2e_test.png", &rendered).unwrap();
-    eprintln!("wrote /tmp/kitty_e2e_test.png ({w}x{h})");
+    let out = std::env::temp_dir().join("kitty_e2e_test.png");
+    std::fs::write(&out, &rendered).unwrap();
+    eprintln!("wrote {} ({w}x{h})", out.display());
 }
 
 #[test]

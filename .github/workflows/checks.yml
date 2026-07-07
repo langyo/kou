@@ -9,8 +9,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     env:
-      # Font fetching is exercised separately; keep the check job
-      # offline-friendly (no network, no font cache).
+      # Tests never fetch fonts at runtime; the cache is pre-populated below.
       KOU_SKIP_FONT_FETCH: "1"
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +18,21 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
 
+      # Snapshot baselines are pixel-diffed, so the renderer must use the same
+      # pinned fonts CI-to-CI and machine-to-machine. Pull the `fonts` archive
+      # (built by fonts-release.yml) into the kou font cache before any test
+      # runs. `fonts` is a rolling release, not versioned.
+      - name: Prepare pinned test fonts
+        run: |
+          mkdir -p ~/.cache/kou/fonts
+          gh release download fonts -R "$GITHUB_REPOSITORY" \
+            -p 'fonts.zip' --clobber --output fonts.zip
+          unzip -o fonts.zip -d ~/.cache/kou/fonts
+          ls -la ~/.cache/kou/fonts/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-features
+
