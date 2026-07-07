@@ -1,12 +1,13 @@
-<p align="center"><img src="https://raw.githubusercontent.com/celestia-island/kou/master/docs/logo.webp" alt="kou" width="240" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/celestia-island/kou/master/docs/logo.webp" alt="Kou" width="240" /></p>
 
-<h1 align="center">kou</h1>
+<h1 align="center">Kou</h1>
 
 <p align="center"><strong>虛擬終端引擎</strong></p>
 
 <div align="center">
 
 [![License: SySL-1.0](https://img.shields.io/badge/License-SySL--1.0-blue.svg)](https://sysl.celestia.world)
+[![GitHub](https://img.shields.io/badge/github-celestia--island%2Fkou-blue.svg)](https://github.com/celestia-island/kou)
 [![Checks](https://img.shields.io/github/actions/workflow/status/celestia-island/kou/checks.yml)](https://github.com/celestia-island/kou/actions/workflows/checks.yml)
 [![Docs](https://img.shields.io/badge/docs-kou.docs.celestia.world-blue)](https://kou.docs.celestia.world)
 [![docs.rs](https://docs.rs/kou/badge.svg)](https://docs.rs/kou)
