@@ -1,20 +1,16 @@
 name: Font assets
 
-# Package the **pinned** fonts the snapshot tests render against, and attach
-# them to a GitHub Release. The CI workflow (`checks.yml`) downloads this
-# `fonts-v*` archive so snapshot baselines are byte-stable across machines.
+# Package the pinned fonts the snapshot tests render against, and attach them
+# to a rolling `fonts` GitHub Release. The CI workflow (`checks.yml`) pulls
+# this archive so snapshot baselines stay byte-stable across machines.
 #
-# The fonts are pinned to exact upstream versions so a re-release reproduces
-# identical bytes — bump the version tags below (and the `v` suffix on the
-# Release tag) only when you intend to update baselines.
+# This is CI infra, not a versioned product: the Release tag `fonts` is fixed,
+# and re-running this workflow simply replaces the attached `fonts.zip` with
+# the current pinned fonts. A change to the fonts only affects the commit that
+# triggers it (baselines must then be re-blessed with KOU_ACCEPT_SNAPSHOTS=1).
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag, e.g. fonts-v1"
-        required: true
-        default: "fonts-v1"
 
 permissions:
   contents: write
@@ -38,15 +34,14 @@ jobs:
 
       - name: Zip
         run: |
-          archive="${{ inputs.tag }}.zip"
-          (cd fonts && zip -r "../${archive}" .)
-          echo "archive=${archive}" >> "$GITHUB_ENV"
+          (cd fonts && zip -r ../fonts.zip .)
+          ls -la fonts.zip
 
-      - name: Attach to release
+      - name: Attach to the rolling fonts Release
         uses: softprops/action-gh-release@v2
         with:
-          tag: ${{ inputs.tag }}
-          name: ${{ inputs.tag }}
+          tag: fonts
+          name: fonts
           body: |
             Pinned font assets for the `kou` snapshot regression tests.
 
@@ -54,6 +49,7 @@ jobs:
             - `FiraCode-Regular.ttf` — FiraCode 5.2 (Latin primary)
             - `SourceHanSansSC-Regular.otf` — Source Han Sans SC (CJK fallback)
 
-            The CI workflow extracts this into the kou font cache before
-            `cargo test` so rendered baselines stay pixel-stable.
-          files: ${{ env.archive }}
+            This is a rolling release: re-running the workflow replaces
+            `fonts.zip`. The CI workflow extracts it into the kou font cache
+            before `cargo test` so rendered baselines stay pixel-stable.
+          files: fonts.zip
