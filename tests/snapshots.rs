@@ -1,20 +1,127 @@
-//! Snapshot tests: feed raw ANSI text directly to a Screen, render to PNG.
-//! Large screens (120×60+) for most; 80×24 only for the classic-size test.
+//! Snapshot regression tests: feed raw ANSI text to a `Screen`, render to PNG,
+//! and compare against a committed baseline under `res/`.
+//!
+//! # Why pixel-diff, not just "render and eyeball"
+//!
+//! These baselines are a **rendering regression alarm**. If a code change
+//! (a new VT100 parser path, a render refactor, a font-metrics shift) silently
+//! breaks what used to render correctly, the per-pixel comparison fails and
+//! points at the culprit change. Two ways to resolve a failure:
+//!
+//! 1. **It's a real regression** → fix the code until the render matches again.
+//! 2. **It's an intended change** (you deliberately altered rendering) → accept
+//!    the new image as the baseline:
+//!    ```bash
+//!    KOU_ACCEPT_SNAPSHOTS=1 cargo test --test snapshots
+//!    ```
+//!    then commit the updated `res/*.png`.
+//!
+//! # Font determinism (the whole scheme hinges on this)
+//!
+//! The renderer is pixel-deterministic *given the same fonts* — `ab_glyph`
+//! rasterisation and Lanczos3 downscale have no hidden state. The only source
+//! of cross-machine drift is the **font files**. So tests MUST NOT use
+//! `FontCache::from_system_fonts` (which picks Consolas on Windows, DejaVu on
+//! Linux, Menlo on macOS — guaranteeing spurious diffs).
+//!
+//! Instead [`fonts`] loads a fixed `FontSet` (FiraCode primary + Source Han Sans
+//! SC fallback) via the same resolution path the library uses in production
+//! (`KOU_FONT_PATH` → kou cache → fetch). Tests run with `KOU_SKIP_FONT_FETCH=1`
+//! so they never hit the network; the cache must be pre-populated:
+//!   - locally: run any kou example once, or point `KOU_FONT_PATH`/`KOU_FONT_CJK_PATH`
+//!     at the two files;
+//!   - in CI: the workflow downloads a pinned `fonts-v1` asset from the GitHub
+//!     Release into the kou cache before `cargo test`.
 
 use base64::Engine as _;
-use kou::{FontCache, Screen, theme_by_name};
+use image::RgbaImage;
+use kou::{FontCache, FontSet, Screen, theme_by_name};
 
+/// Maximum fraction of pixels allowed to differ before a snapshot is flagged
+/// as a regression. 0.1% tolerates PNG re-encoding noise while still catching
+/// any meaningful glyph/layout change.
+const DIFF_THRESHOLD: f64 = 0.001;
+
+/// Load the **fixed** font set used by every snapshot. See the module docs for
+/// why this must not use system fonts.
 fn fonts() -> FontCache {
-    FontCache::from_system_fonts(32.0 * 3.0)
+    FontCache::load(&FontSet::from_env(), 32.0 * 3.0)
 }
 
-fn snapshot(screen: &Screen, theme: &str, path: &str) {
+/// Render `screen` in `theme` and compare against the baseline `res/{name}.png`.
+///
+/// - With `KOU_ACCEPT_SNAPSHOTS` set, the rendered image replaces the baseline
+///   (use this to bless an intentional rendering change).
+/// - Otherwise the two are diffed pixel-by-pixel; differing beyond
+///   [`DIFF_THRESHOLD`] fails the test with guidance on how to accept.
+fn assert_matches(screen: &Screen, theme: &str, name: &str) {
     let png = kou::render::render_png_supersampled(screen, &fonts(), 32.0, 3, theme_by_name(theme))
         .expect("render");
-    let dir = std::path::Path::new(path).parent().unwrap();
-    std::fs::create_dir_all(dir).unwrap();
-    std::fs::write(path, &png).unwrap();
-    eprintln!("  wrote {path}");
+    let baseline = std::path::Path::new("res").join(format!("{name}.png"));
+
+    if std::env::var_os("KOU_ACCEPT_SNAPSHOTS").is_some() {
+        std::fs::create_dir_all(baseline.parent().unwrap()).unwrap();
+        std::fs::write(&baseline, &png).unwrap();
+        eprintln!("  accepted {baseline:?}");
+        return;
+    }
+
+    let new = image::load_from_memory(&png)
+        .expect("decode rendered png")
+        .to_rgba8();
+    let base_bytes = std::fs::read(&baseline).unwrap_or_else(|e| {
+        panic!(
+            "baseline {baseline:?} missing ({e}); generate it with \
+             `KOU_ACCEPT_SNAPSHOTS=1 cargo test --test snapshots`"
+        )
+    });
+    let base = image::load_from_memory(&base_bytes)
+        .expect("decode baseline png")
+        .to_rgba8();
+
+    assert_eq!(
+        base.dimensions(),
+        new.dimensions(),
+        "{name}: dimensions changed ({}x{} -> {}x{}) — screen geometry or font metrics drifted",
+        base.width(),
+        base.height(),
+        new.width(),
+        new.height(),
+    );
+
+    let (ratio, max_delta) = pixel_diff(&base, &new);
+    let pct = format!("{:.3}%", ratio * 100.0);
+    assert!(
+        ratio < DIFF_THRESHOLD,
+        "{name}: {pct} of pixels differ (max channel delta {max_delta}) — \
+         rendering regression? If this change is intended, bless it with \
+         `KOU_ACCEPT_SNAPSHOTS=1 cargo test --test snapshots {name}`",
+    );
+}
+
+/// Fraction of differing pixels and the largest single-channel delta between
+/// two equally-sized RGBA images. A pixel "differs" when any channel differs
+/// by more than a small tolerance (anti-aliasing edges can shift by ±1).
+fn pixel_diff(base: &RgbaImage, other: &RgbaImage) -> (f64, u8) {
+    debug_assert_eq!(base.dimensions(), other.dimensions());
+    let (w, h) = base.dimensions();
+    let total = (w as u64) * (h as u64);
+    let mut differing = 0u64;
+    let mut max_delta = 0u8;
+    for (a, b) in base.pixels().zip(other.pixels()) {
+        let dr = a[0].abs_diff(b[0]);
+        let dg = a[1].abs_diff(b[1]);
+        let db = a[2].abs_diff(b[2]);
+        let da = a[3].abs_diff(b[3]);
+        let local = dr.max(dg).max(db).max(da);
+        max_delta = max_delta.max(local);
+        // Ignore near-zero shifts (≤2 per channel) so 1px anti-alias jitter
+        // doesn't trip the alarm.
+        if local > 2 {
+            differing += 1;
+        }
+    }
+    (differing as f64 / total as f64, max_delta)
 }
 
 // ── 1. Neofetch showcase (120×60) ───────────────────────────────
@@ -48,7 +155,7 @@ fn neofetch_showcase() {
         ("Shell", "kou::VttyManager"),
         ("Resolution", "120 columns × 60 rows"),
         ("Themes", "15 Windows Terminal schemes"),
-        ("Fonts", "DejaVuSansMono · NotoSansCJK · system"),
+        ("Fonts", "FiraCode · Source Han Sans SC · pinned"),
         ("Protocol", "Kitty2 (APC) + iTerm2 (OSC 1337) + Sixel (DCS)"),
         ("Render", "Lanczos3 supersampled 3× · contain-fit images"),
         (
@@ -87,9 +194,9 @@ fn neofetch_showcase() {
     }
     sc.feed(b"\n");
 
-    snapshot(&sc, "solarized-dark", "res/neofetch_solarized_dark.png");
-    snapshot(&sc, "campbell", "res/neofetch_campbell.png");
-    snapshot(&sc, "one-half-dark", "res/neofetch_one_half_dark.png");
+    assert_matches(&sc, "solarized-dark", "neofetch_solarized_dark");
+    assert_matches(&sc, "campbell", "neofetch_campbell");
+    assert_matches(&sc, "one-half-dark", "neofetch_one_half_dark");
 }
 
 // ── 2. Rainbow gradient (80×40) ─────────────────────────────────
@@ -110,7 +217,7 @@ fn rainbow_gradient() {
         "\n\n                  \x1b[2;37mkou — VTty engine · rainbow gradient test\x1b[0m\n"
             .as_bytes(),
     );
-    snapshot(&sc, "campbell", "res/rainbow_gradient_campbell.png");
+    assert_matches(&sc, "campbell", "rainbow_gradient_campbell");
 }
 
 // ── 3. Protocol comparison table (120×30) ───────────────────────
@@ -180,7 +287,7 @@ fn protocol_comparison() {
             label, k, it, sx, lc=lc, kc=kc, ic=ic, xc=xc,
         ).as_bytes());
     }
-    snapshot(&sc, "one-half-dark", "res/protocol_comparison.png");
+    assert_matches(&sc, "one-half-dark", "protocol_comparison");
 }
 
 // ── 4. Inline image rendering (kitty2) — logo via APC ───────────
@@ -242,12 +349,8 @@ fn inline_image_kitty2() {
     sc.feed("\x1b[36;8H\x1b[38;2;255;107;157m简体中文\x1b[0m · \x1b[38;2;107;255;157m日本語\x1b[0m · \x1b[38;2;107;157;255m한국어\x1b[0m".as_bytes());
     sc.feed("\x1b[40;8H\x1b[2;37mLogo: kou/docs/logo.webp → PNG → kitty APC → Screen::feed → render\x1b[0m".as_bytes());
 
-    snapshot(
-        &sc,
-        "solarized-dark",
-        "res/inline_image_kitty2_solarized_dark.png",
-    );
-    snapshot(&sc, "campbell", "res/inline_image_kitty2_campbell.png");
+    assert_matches(&sc, "solarized-dark", "inline_image_kitty2_solarized_dark");
+    assert_matches(&sc, "campbell", "inline_image_kitty2_campbell");
 }
 
 // ── 5. Inline image rendering (iTerm2) — logo via OSC 1337 ──────
@@ -303,11 +406,7 @@ fn inline_image_iterm2() {
     sc.feed("\x1b[30;8H\x1b[32m● Same contain-fit render path as kitty2\x1b[0m".as_bytes());
     sc.feed("\x1b[34;8H\x1b[2;37mLogo placed via iTerm2 inline-image protocol\x1b[0m".as_bytes());
 
-    snapshot(
-        &sc,
-        "solarized-dark",
-        "res/inline_image_iterm2_solarized_dark.png",
-    );
+    assert_matches(&sc, "solarized-dark", "inline_image_iterm2_solarized_dark");
 }
 
 // ── 6. Classic 80×24 terminal demo ──────────────────────────────
@@ -337,165 +436,5 @@ fn classic_terminal() {
     sc.feed("  \x1b[48;2;30;30;40m\x1b[37m │  │  │  │  │ \x1b[0m\n".as_bytes());
     sc.feed("  \x1b[48;2;30;30;40m\x1b[37m └──┴──┴──┴──┘ \x1b[0m\n".as_bytes());
 
-    snapshot(&sc, "campbell", "res/classic_80x24_campbell.png");
-}
-
-// ── 7. seia search results (120×50) ─────────────────────────────
-
-#[test]
-fn seia_search_results() {
-    let mut sc = Screen::new(110, 50);
-    sc.feed("\x1b[1;37m\x1b[44m\x1b[K  seia — multi-engine web search  \x1b[0m\n\n".as_bytes());
-    sc.feed(
-        "  \x1b[1m$\x1b[0m seia search \"rust async patterns\" --engine duckduckgo --limit 8\n"
-            .as_bytes(),
-    );
-    sc.feed("  \x1b[2;36mEngine:\x1b[0m \x1b[36mDuckDuckGo\x1b[0m  \x1b[2m| Results: 8 | Time: 0.42s\x1b[0m\n\n".as_bytes());
-    let results = [
-        (
-            "Asynchronous Programming in Rust",
-            "rust-lang.org/async-book",
-            "The official guide to async/await. Covers futures, tokio, async-std, and common patterns for building concurrent Rust applications.",
-        ),
-        (
-            "Tokio Tutorial",
-            "tokio.rs/tokio/tutorial",
-            "Learn how to build asynchronous applications with Tokio, the most popular async runtime for Rust. Includes channels, spawning, and I/O.",
-        ),
-        (
-            "Futures Explained in 200 Lines of Rust",
-            "cfsamson.github.io/books-futures-explained",
-            "Build a future executor from scratch to understand how async/await works under the hood. Clear, concise, and code-heavy.",
-        ),
-        (
-            "Pin and Unpin in Rust",
-            "blog.cloudflare.com/pin-and-unpin-in-rust",
-            "A deep dive into self-referential structs, the Pin type, and why async Rust needs them. By Cloudflare's engineering team.",
-        ),
-        (
-            "async-std Documentation",
-            "async.rs",
-            "An asynchronous version of the Rust standard library. Provides async file I/O, networking, timers, and more.",
-        ),
-        (
-            "Smol — a small and fast async runtime",
-            "github.com/smol-rs/smol",
-            "A minimal, correct, and fast async runtime. Smol is designed to be simple to understand and easy to build on.",
-        ),
-        (
-            "Async Rust Is Hard",
-            "jacko.io/async-rust-is-hard",
-            "An honest discussion of the pain points of async Rust, with practical advice for navigating them in real projects.",
-        ),
-        (
-            "The Why of Async/Await in Rust",
-            "yatima.io/blog/Async-Await",
-            "Historical context and design rationale behind Rust's async/await syntax and the tokio ecosystem.",
-        ),
-    ];
-    for (i, (title, url, desc)) in results.iter().enumerate() {
-        sc.feed(format!("  \x1b[33m{:2}.\x1b[0m \x1b[4;34m{}\x1b[0m\n", i + 1, title).as_bytes());
-        sc.feed(format!("      \x1b[2m{}\x1b[0m\n", url).as_bytes());
-        sc.feed(format!("      {}\n\n", desc).as_bytes());
-    }
-    sc.feed("  \x1b[32m●\x1b[0m Also tried: \x1b[36mBing (5)\x1b[0m  \x1b[36mBrave (3)\x1b[0m  \x1b[36mWikipedia (1)\x1b[0m\n".as_bytes());
-    snapshot(
-        &sc,
-        "solarized-dark",
-        "../seia/res/search_solarized_dark.png",
-    );
-    snapshot(&sc, "campbell", "../seia/res/search_campbell.png");
-}
-
-// ── 8. shirabe debug server (110×50) ────────────────────────────
-
-#[test]
-fn shirabe_debug_server() {
-    let mut sc = Screen::new(100, 50);
-    sc.feed(
-        "\x1b[1;37m\x1b[44m\x1b[K  shirabe — headless browser automation  \x1b[0m\n\n".as_bytes(),
-    );
-    sc.feed("  \x1b[1m$\x1b[0m shirabe serve --port 3001\n\n".as_bytes());
-    sc.feed("  \x1b[32m●\x1b[0m Backend:  \x1b[36mChromium 131.0\x1b[0m \x1b[2m(headless, auto-detected)\x1b[0m\n".as_bytes());
-    sc.feed("  \x1b[32m●\x1b[0m Debug API: \x1b[4;34mhttp://localhost:3001\x1b[0m\n".as_bytes());
-    sc.feed(
-        "  \x1b[32m●\x1b[0m CDP:      \x1b[4;34mws://localhost:3001/devtools\x1b[0m\n\n".as_bytes(),
-    );
-    sc.feed("  \x1b[1mHTTP API Endpoints\x1b[0m\n\n".as_bytes());
-    let endpoints = [
-        ("GET", "/health", "Health check — returns {\"ok\":true}"),
-        (
-            "GET",
-            "/info",
-            "Browser version, viewport dimensions, current URL",
-        ),
-        (
-            "POST",
-            "/navigate",
-            "Navigate to a URL: {\"url\":\"https://…\"}",
-        ),
-        ("POST", "/back", "Go back in browser history"),
-        ("POST", "/forward", "Go forward in browser history"),
-        (
-            "POST",
-            "/screenshot",
-            "Capture viewport as base64 PNG: {\"selector\":\"…\",\"full_page\":true}",
-        ),
-        (
-            "POST",
-            "/click",
-            "Click an element: {\"selector\":\"#button\"}",
-        ),
-        (
-            "POST",
-            "/type",
-            "Type text: {\"selector\":\"input\",\"text\":\"hello\",\"submit\":true}",
-        ),
-        ("POST", "/press", "Press a key: {\"key\":\"Enter\"}"),
-        (
-            "POST",
-            "/evaluate",
-            "Execute JavaScript: {\"expression\":\"document.title\"}",
-        ),
-        (
-            "GET",
-            "/dom",
-            "Query DOM: ?selector=div&attribute=class&computed=true",
-        ),
-        ("GET", "/a11y", "Accessibility tree snapshot: ?selector=nav"),
-        ("GET", "/console", "Console log entries: ?level=error"),
-        (
-            "POST",
-            "/resize",
-            "Resize viewport: {\"width\":1280,\"height\":720}",
-        ),
-    ];
-    for (method, path, desc) in &endpoints {
-        let mc = if *method == "GET" { "2;37" } else { "2;33" };
-        sc.feed(
-            format!(
-                "  \x1b[{}m{:<5}\x1b[0m \x1b[36m{:<16}\x1b[0m {}\n",
-                mc, method, path, desc
-            )
-            .as_bytes(),
-        );
-    }
-    sc.feed(
-        "\n  \x1b[32m●\x1b[0m Zero-config: auto-discovers Chrome / Chromium / Edge\n".as_bytes(),
-    );
-    sc.feed("  \x1b[32m●\x1b[0m Backends: Chrome for Testing fetch, system Chrome, foreign-engine (FF/Servo)\n".as_bytes());
-    sc.feed(
-        "  \x1b[32m●\x1b[0m Extracted from tairitsu packager — hardened to stand alone\n"
-            .as_bytes(),
-    );
-    snapshot(
-        &sc,
-        "solarized-dark",
-        "../shirabe/res/debug_server_solarized_dark.png",
-    );
-    snapshot(
-        &sc,
-        "one-half-dark",
-        "../shirabe/res/debug_server_one_half_dark.png",
-    );
+    assert_matches(&sc, "campbell", "classic_80x24_campbell");
 }

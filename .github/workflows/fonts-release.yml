@@ -1,0 +1,59 @@
+name: Font assets
+
+# Package the **pinned** fonts the snapshot tests render against, and attach
+# them to a GitHub Release. The CI workflow (`checks.yml`) downloads this
+# `fonts-v*` archive so snapshot baselines are byte-stable across machines.
+#
+# The fonts are pinned to exact upstream versions so a re-release reproduces
+# identical bytes — bump the version tags below (and the `v` suffix on the
+# Release tag) only when you intend to update baselines.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. fonts-v1"
+        required: true
+        default: "fonts-v1"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download pinned fonts
+        run: |
+          mkdir -p fonts
+          # Pinned upstream versions — keep in sync with src/font.rs source_url().
+          curl -fsSL -o fonts/FiraCode-Regular.ttf \
+            "https://cdn.jsdelivr.net/gh/tonsky/FiraCode@5.2/distr/ttf/FiraCode-Regular.ttf"
+          curl -fsSL -o fonts/SourceHanSansSC-Regular.otf \
+            "https://cdn.jsdelivr.net/gh/adobe-fonts/source-han-sans@release/SubsetOTF/CN/SourceHanSansCN-Regular.otf"
+          # Sanity: both files non-empty.
+          test -s fonts/FiraCode-Regular.ttf
+          test -s fonts/SourceHanSansSC-Regular.otf
+          ls -la fonts/
+
+      - name: Zip
+        run: |
+          archive="${{ inputs.tag }}.zip"
+          (cd fonts && zip -r "../${archive}" .)
+          echo "archive=${archive}" >> "$GITHUB_ENV"
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
+          body: |
+            Pinned font assets for the `kou` snapshot regression tests.
+
+            Contents:
+            - `FiraCode-Regular.ttf` — FiraCode 5.2 (Latin primary)
+            - `SourceHanSansSC-Regular.otf` — Source Han Sans SC (CJK fallback)
+
+            The CI workflow extracts this into the kou font cache before
+            `cargo test` so rendered baselines stay pixel-stable.
+          files: ${{ env.archive }}
