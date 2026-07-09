@@ -77,6 +77,7 @@ jobs:
       # Build with the mcp feature so `kou mcp` ships in the binary. Keep fonts
       # offline (no network fetch) during a release build.
       - name: Build (release)
+        env:
           KOU_SKIP_FONT_FETCH: "1"
         run: cargo build --release --features mcp --target ${{ matrix.target }}
 
