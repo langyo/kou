@@ -46,7 +46,8 @@ unicode-width = "^0.2"
 reqwest = { version = "^0.13", features = ["blocking", "rustls-no-provider"], default-features = false, optional = true }
 rustls = { version = "^0.23", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }
 # MCP (optional, for standalone MCP server)
-rmcp = { version = "^0.1", optional = true }
+rmcp = { version = "^1", optional = true, features = ["server", "transport-io", "macros", "schemars"] }
+schemars = { version = "^1", optional = true, features = ["derive"] }
 # Sixel decode/encode (optional — adds icy_sixel + quantette).
 icy_sixel = { version = "^0.5", optional = true }
 
@@ -57,7 +58,9 @@ default = ["font-fetch"]
 font-fetch = ["dep:reqwest", "dep:rustls"]
 # Sixel graphics protocol support (decode DCS sixel → image, encode image → sixel).
 sixel = ["dep:icy_sixel"]
-mcp = ["rmcp"]
+# Standalone MCP (Model Context Protocol) server exposing the VTty tools over
+# stdio. Requires rmcp + schemars; pulls in tokio io-std at the binary level.
+mcp = ["dep:rmcp", "dep:schemars", "tokio/io-std"]
 
 [dev-dependencies]
 serial_test = "^3"
