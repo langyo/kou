@@ -44,3 +44,14 @@ ci:
     just fmt-check
     just clippy
     just test
+
+# ── npx distribution (local dry-run) ─────────────────────────────────────────
+#
+# Wraps the shared recipe from celestia-devtools.just with kou's metadata. CI
+# does the actual publish (see .github/workflows/npm-release.yml); locally this
+# only stages ./dist and runs `npm pack --dry-run`.
+#
+#   just npm-dist-local                                       # reassemble root from existing dist/
+#   just npm-dist-local 0.1.0 path/to/kou x86_64-pc-windows-msvc
+npm-dist-local version='' binary='' target='':
+    KOU_SKIP_FONT_FETCH=1 just npm-dist kou {{version}} {{binary}} {{target}}

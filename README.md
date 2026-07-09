@@ -60,6 +60,23 @@ kou launch bash --cols 80 --rows 24
 # > screen        # prints the current screen text
 ```
 
+### npx (no Rust toolchain required)
+
+Prebuilt binaries are published to npm, so you can run `kou` with a single
+command — no `cargo build`:
+
+```bash
+npx @celestia-island/kou launch bash
+npx @celestia-island/kou mcp        # the MCP server (needs the mcp build)
+```
+
+The `@celestia-island/kou` root package pulls the right platform subpackage
+(`-linux-x64` / `-darwin-arm64` / `-win32-x64`) automatically. To pin a version:
+
+```bash
+npx @celestia-island/kou@0.1.0 launch bash
+```
+
 ### Library
 
 ```rust
