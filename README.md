@@ -60,6 +60,23 @@ kou launch bash --cols 80 --rows 24
 # > screen        # prints the current screen text
 ```
 
+### npx (no Rust toolchain required)
+
+Prebuilt binaries are published to npm, so you can run `kou` with a single
+command — no `cargo build`:
+
+```bash
+npx @celestia-island/kou launch bash
+npx @celestia-island/kou mcp        # the MCP server (needs the mcp build)
+```
+
+The `@celestia-island/kou` root package pulls the right platform subpackage
+(`-linux-x64` / `-darwin-arm64` / `-win32-x64`) automatically. To pin a version:
+
+```bash
+npx @celestia-island/kou@0.1.0 launch bash
+```
+
 ### Library
 
 ```rust
@@ -123,6 +140,37 @@ reqwest).
 | `KOU_DOWNLOAD_PROXY` | Route downloads through an HTTP(S) proxy (reqwest). |
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Per-request timeout (default 120). |
 | `KOU_SKIP_FONT_FETCH` | Disable fetching. |
+
+## MCP server
+
+Build kou with the `mcp` feature and run the stdio server — it exposes the
+virtual-terminal engine to AI coding assistants over the Model Context
+Protocol (no browser or daemon required):
+
+```bash
+kou mcp
+```
+
+The server advertises eleven tools — `vtty_launch`, `vtty_kill`,
+`vtty_send_keys`, `vtty_send_text`, `vtty_screenshot`, `vtty_wait`,
+`vtty_ready`, `vtty_scrollback`, `vtty_resize`, `vtty_list`, `vtty_ping` —
+each delegating in-process to the same `VttyManager` the library exposes.
+Screenshots render through the same font + theme stack as the library, so
+`vtty_screenshot` returns a real PNG (or themed text) for vision-capable
+models.
+
+Wire it into an MCP client:
+
+```json
+{
+  "mcpServers": {
+    "kou": { "command": "kou", "args": ["mcp"] }
+  }
+}
+```
+
+Set `KOU_PROJECT_ROOT` to pin the working directory for launched sessions
+when the client does not advertise a project root.
 
 ## Development
 
