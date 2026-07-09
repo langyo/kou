@@ -18,6 +18,10 @@ enum Command {
         #[arg(short, long, default_value = "24")]
         rows: u16,
     },
+    /// Run the MCP (Model Context Protocol) server on stdio, exposing the
+    /// virtual-terminal tools to AI coding assistants.
+    #[cfg(feature = "mcp")]
+    Mcp,
 }
 
 #[tokio::main]
@@ -65,8 +69,20 @@ async fn main() -> anyhow::Result<()> {
 
             mgr.kill(&info.id).await;
         }
+        #[cfg(feature = "mcp")]
+        Some(Command::Mcp) => {
+            kou::mcp::run().await?;
+        }
         None => {
-            eprintln!("Usage: kou launch <command> [--cols 80] [--rows 24]");
+            #[cfg(feature = "mcp")]
+            {
+                eprintln!("Usage: kou launch <command> [--cols 80] [--rows 24]");
+                eprintln!("       kou mcp");
+            }
+            #[cfg(not(feature = "mcp"))]
+            {
+                eprintln!("Usage: kou launch <command> [--cols 80] [--rows 24]");
+            }
         }
     }
 

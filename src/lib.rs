@@ -22,6 +22,8 @@
 
 pub mod font;
 pub mod graphics;
+#[cfg(feature = "mcp")]
+pub mod mcp;
 pub mod pty;
 pub mod read;
 pub mod render;
