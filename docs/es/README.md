@@ -126,6 +126,28 @@ Las descargas pueden enrutarse a través de un proxy HTTP(S) vía
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Tiempo de espera por solicitud (predeterminado 120). |
 | `KOU_SKIP_FONT_FETCH` | Deshabilita la obtención. |
 
+## Servidor MCP
+
+Construye kou con la feature `mcp` y ejecuta el servidor stdio — expone el motor de terminal virtual a los asistentes de codificación de IA a través del Model Context Protocol (no se requiere navegador ni demonio):
+
+```bash
+kou mcp
+```
+
+El servidor anuncia once herramientas — `vtty_launch`, `vtty_kill`, `vtty_send_keys`, `vtty_send_text`, `vtty_screenshot`, `vtty_wait`, `vtty_ready`, `vtty_scrollback`, `vtty_resize`, `vtty_list`, `vtty_ping` — cada una delegando en el proceso al mismo `VttyManager` que expone la biblioteca. Las capturas de pantalla se renderizan a través de la misma pila de fuentes + temas que la biblioteca, por lo que `vtty_screenshot` devuelve un PNG real (o texto con tema) para modelos con capacidad de visión.
+
+Conéctalo a un cliente MCP:
+
+```json
+{
+  "mcpServers": {
+    "kou": { "command": "kou", "args": ["mcp"] }
+  }
+}
+```
+
+Establece `KOU_PROJECT_ROOT` para fijar el directorio de trabajo de las sesiones iniciadas cuando el cliente no anuncia una raíz de proyecto.
+
 ## Desarrollo
 
 ```bash
