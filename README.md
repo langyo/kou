@@ -124,6 +124,37 @@ reqwest).
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Per-request timeout (default 120). |
 | `KOU_SKIP_FONT_FETCH` | Disable fetching. |
 
+## MCP server
+
+Build kou with the `mcp` feature and run the stdio server — it exposes the
+virtual-terminal engine to AI coding assistants over the Model Context
+Protocol (no browser or daemon required):
+
+```bash
+kou mcp
+```
+
+The server advertises eleven tools — `vtty_launch`, `vtty_kill`,
+`vtty_send_keys`, `vtty_send_text`, `vtty_screenshot`, `vtty_wait`,
+`vtty_ready`, `vtty_scrollback`, `vtty_resize`, `vtty_list`, `vtty_ping` —
+each delegating in-process to the same `VttyManager` the library exposes.
+Screenshots render through the same font + theme stack as the library, so
+`vtty_screenshot` returns a real PNG (or themed text) for vision-capable
+models.
+
+Wire it into an MCP client:
+
+```json
+{
+  "mcpServers": {
+    "kou": { "command": "kou", "args": ["mcp"] }
+  }
+}
+```
+
+Set `KOU_PROJECT_ROOT` to pin the working directory for launched sessions
+when the client does not advertise a project root.
+
 ## Development
 
 ```bash
