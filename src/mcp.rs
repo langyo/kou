@@ -24,8 +24,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use rmcp::{
+    ErrorData as McpError, RoleServer, ServerHandler, ServiceExt,
     handler::server::wrapper::Parameters, model::*, service::RequestContext, tool, tool_handler,
-    tool_router, ErrorData as McpError, RoleServer, ServerHandler, ServiceExt,
+    tool_router,
 };
 use schemars::JsonSchema;
 
@@ -48,13 +49,15 @@ impl Server {
     }
 
     /// Rasterise a VTty screen to a base64-encoded PNG, painted through `theme`.
-    fn render_png(
-        &self,
-        screen: &crate::Screen,
-        theme: &crate::Theme,
-    ) -> Result<String, McpError> {
-        let png = crate::render::render_png_supersampled(screen, &self.fonts, FONT_PX, RENDER_SUPER, theme)
-            .map_err(|e| McpError::internal_error(format!("VTty render failed: {e}"), None))?;
+    fn render_png(&self, screen: &crate::Screen, theme: &crate::Theme) -> Result<String, McpError> {
+        let png = crate::render::render_png_supersampled(
+            screen,
+            &self.fonts,
+            FONT_PX,
+            RENDER_SUPER,
+            theme,
+        )
+        .map_err(|e| McpError::internal_error(format!("VTty render failed: {e}"), None))?;
         Ok(base64::engine::general_purpose::STANDARD.encode(&png))
     }
 

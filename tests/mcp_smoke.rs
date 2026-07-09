@@ -68,6 +68,7 @@ fn read_response<R: BufRead>(r: &mut R, want_id: u64, timeout: Duration) -> serd
 }
 
 #[test]
+#[allow(clippy::zombie_processes)] // best-effort teardown: try_wait then kill
 fn mcp_server_lists_vtty_tools() {
     let bin = kou_binary();
     let mut child = Command::new(&bin)
@@ -105,7 +106,12 @@ fn mcp_server_lists_vtty_tools() {
     );
 
     // notifications/initialized ack (no response expected).
-    write_msg(&mut stdin, None, "notifications/initialized", serde_json::json!({}));
+    write_msg(
+        &mut stdin,
+        None,
+        "notifications/initialized",
+        serde_json::json!({}),
+    );
 
     // tools/list — assert the full vtty roster.
     write_msg(&mut stdin, Some(2), "tools/list", serde_json::json!({}));
