@@ -77,7 +77,6 @@ jobs:
       # Build with the mcp feature so `kou mcp` ships in the binary. Keep fonts
       # offline (no network fetch) during a release build.
       - name: Build (release)
-        env:
           KOU_SKIP_FONT_FETCH: "1"
         run: cargo build --release --features mcp --target ${{ matrix.target }}
 
@@ -107,7 +106,6 @@ jobs:
 
       - name: Publish subpackage
         shell: bash
-        env:
         run: |
           sub="dist/kou${{ matrix.suffix }}"
           echo "::group::npm pack $sub"
@@ -164,7 +162,6 @@ jobs:
             --homepage "https://github.com/celestia-island/kou"
 
       - name: Publish root package
-        env:
         run: |
           echo "::group::npm pack (root)"
           (cd dist && npm pack --dry-run)
