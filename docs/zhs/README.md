@@ -120,6 +120,28 @@ kou 会在构建时为每种文字各预下载一个字体到共享缓存中：
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | 单次请求超时时间（默认 120）。 |
 | `KOU_SKIP_FONT_FETCH` | 禁用字体拉取。 |
 
+## MCP 服务器
+
+使用 `mcp` feature 构建 kou 并运行 stdio 服务器——它通过模型上下文协议（Model Context Protocol）将虚拟终端引擎暴露给 AI 编码助手（无需浏览器或守护进程）：
+
+```bash
+kou mcp
+```
+
+服务器提供十一个工具——`vtty_launch`、`vtty_kill`、`vtty_send_keys`、`vtty_send_text`、`vtty_screenshot`、`vtty_wait`、`vtty_ready`、`vtty_scrollback`、`vtty_resize`、`vtty_list`、`vtty_ping`——每个工具都在进程内委托给库所暴露的同一个 `VttyManager`。截图通过与库相同的字体 + 主题栈渲染，因此 `vtty_screenshot` 会为具备视觉能力的模型返回真实的 PNG（或主题化文本）。
+
+将其接入 MCP 客户端：
+
+```json
+{
+  "mcpServers": {
+    "kou": { "command": "kou", "args": ["mcp"] }
+  }
+}
+```
+
+当客户端未通告项目根目录时，设置 `KOU_PROJECT_ROOT` 来固定所启动会话的工作目录。
+
 ## 开发
 
 ```bash

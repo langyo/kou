@@ -125,6 +125,28 @@ HTTP(S) via `KOU_DOWNLOAD_PROXY` (passé directement à reqwest).
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | Délai d'expiration par requête (par défaut 120). |
 | `KOU_SKIP_FONT_FETCH` | Désactive la récupération. |
 
+## Serveur MCP
+
+Construisez kou avec la feature `mcp` et lancez le serveur stdio — il expose le moteur de terminal virtuel aux assistants de codage IA via le Model Context Protocol (aucun navigateur ni démon requis) :
+
+```bash
+kou mcp
+```
+
+Le serveur annonce onze outils — `vtty_launch`, `vtty_kill`, `vtty_send_keys`, `vtty_send_text`, `vtty_screenshot`, `vtty_wait`, `vtty_ready`, `vtty_scrollback`, `vtty_resize`, `vtty_list`, `vtty_ping` — chacun déléguant en intra-processus au même `VttyManager` que la bibliothèque expose. Les captures d'écran sont rendues via la même pile de polices + thèmes que la bibliothèque, donc `vtty_screenshot` renvoie un vrai PNG (ou du texte thématisé) pour les modèles capables de vision.
+
+Branchez-le dans un client MCP :
+
+```json
+{
+  "mcpServers": {
+    "kou": { "command": "kou", "args": ["mcp"] }
+  }
+}
+```
+
+Définissez `KOU_PROJECT_ROOT` pour fixer le répertoire de travail des sessions lancées lorsque le client n'annonce pas de racine de projet.
+
 ## Développement
 
 ```bash

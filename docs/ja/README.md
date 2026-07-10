@@ -126,6 +126,28 @@ HTTP(S) プロキシ経由にルーティングできます。
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | リクエストごとのタイムアウト (デフォルト 120)。 |
 | `KOU_SKIP_FONT_FETCH` | 取得を無効にします。 |
 
+## MCP サーバー
+
+`mcp` feature を有効にして kou をビルドし、stdio サーバーを実行します——モデルコンテキストプロトコル（Model Context Protocol）経由で仮想ターミナルエンジンを AI コーディングアシスタントに公開します（ブラウザやデーモンは不要）：
+
+```bash
+kou mcp
+```
+
+サーバーは 11 のツールを提供します——`vtty_launch`、`vtty_kill`、`vtty_send_keys`、`vtty_send_text`、`vtty_screenshot`、`vtty_wait`、`vtty_ready`、`vtty_scrollback`、`vtty_resize`、`vtty_list`、`vtty_ping`——各ツールはライブラリが公開するのと同じ `VttyManager` にインプロセスで委譲します。スクリーンショットはライブラリと同じフォント + テーマスタックでレンダリングされるため、`vtty_screenshot` は視覚対応モデル向けに実際の PNG（またはテーマ付きテキスト）を返します。
+
+MCP クライアントに組み込むには：
+
+```json
+{
+  "mcpServers": {
+    "kou": { "command": "kou", "args": ["mcp"] }
+  }
+}
+```
+
+クライアントがプロジェクトルートを通知しない場合、起動したセッションの作業ディレクトリを固定するために `KOU_PROJECT_ROOT` を設定します。
+
 ## 開発
 
 ```bash

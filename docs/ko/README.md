@@ -125,6 +125,28 @@ kou는 스크립트당 하나의 폰트를 빌드 시간에 공유 캐시로 미
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | 요청별 타임아웃 (기본값 120). |
 | `KOU_SKIP_FONT_FETCH` | 가져오기를 비활성화합니다. |
 
+## MCP 서버
+
+`mcp` feature로 kou를 빌드하고 stdio 서버를 실행합니다——모델 컨텍스트 프로토콜(Model Context Protocol)을 통해 가상 터미널 엔진을 AI 코딩 어시스턴트에 노출합니다(브라우저나 데몬 불필요):
+
+```bash
+kou mcp
+```
+
+서버는 열한 가지 도구를 제공합니다——`vtty_launch`, `vtty_kill`, `vtty_send_keys`, `vtty_send_text`, `vtty_screenshot`, `vtty_wait`, `vtty_ready`, `vtty_scrollback`, `vtty_resize`, `vtty_list`, `vtty_ping`——각 도구는 라이브러리가 노출하는 것과 동일한 `VttyManager`에 인프로세스로 위임합니다. 스크린샷은 라이브러리와 동일한 글꼴 + 테마 스택을 통해 렌더링되므로, `vtty_screenshot`은 시각 지원 모델을 위해 실제 PNG(또는 테마가 적용된 텍스트)를 반환합니다.
+
+MCP 클라이언트에 연결하려면:
+
+```json
+{
+  "mcpServers": {
+    "kou": { "command": "kou", "args": ["mcp"] }
+  }
+}
+```
+
+클라이언트가 프로젝트 루트를 알리지 않을 때, 시작된 세션의 작업 디렉토리를 고정하려면 `KOU_PROJECT_ROOT`를 설정하세요.
+
 ## 개발
 
 ```bash
