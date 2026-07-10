@@ -121,6 +121,28 @@ if let Some(escape) = frame {
 | `KOU_DOWNLOAD_TIMEOUT_SECS` | مهلة لكل طلب (افتراضي 120). |
 | `KOU_SKIP_FONT_FETCH` | تعطيل الجلب. |
 
+## خادم MCP
+
+ابنِ kou بميزة `mcp` وشغّل خادم stdio — فهو يعرض محرك الطرفية الافتراضية لمساعدي الترميز بالذكاء الاصطناعي عبر بروتوكول سياق النموذج (Model Context Protocol) (لا حاجة لمتصفح أو خادم خلفي):
+
+```bash
+kou mcp
+```
+
+يُعلن الخادم عن أحد عشر أداة — `vtty_launch`، `vtty_kill`، `vtty_send_keys`، `vtty_send_text`، `vtty_screenshot`، `vtty_wait`، `vtty_ready`، `vtty_scrollback`، `vtty_resize`، `vtty_list`، `vtty_ping` — كل منها يُفوّض داخل العملية إلى نفس `VttyManager` الذي تكشف عنه المكتبة. تُعرض لقطات الشاشة عبر نفس مكدس الخطوط + السمات الذي تستخدمه المكتبة، لذلك تُعيد `vtty_screenshot` ملف PNG حقيقيًا (أو نصًا مُنسّقًا بالسمة) للنماذج التي تدعم الرؤية.
+
+وصله بعميل MCP:
+
+```json
+{
+  "mcpServers": {
+    "kou": { "command": "kou", "args": ["mcp"] }
+  }
+}
+```
+
+عيّن `KOU_PROJECT_ROOT` لتثبيت دليل العمل للجلسات المُطلقة عندما لا يُعلن العميل عن جذر المشروع.
+
 ## التطوير
 
 ```bash
