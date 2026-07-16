@@ -64,3 +64,7 @@ mcp = ["dep:rmcp", "dep:schemars", "tokio/io-std"]
 
 [dev-dependencies]
 serial_test = "^3"
+# Used by tests/common/mod.rs (assert_vtty_screenshot returns anyhow::Result)
+# and tests/vtty_tui.rs for the async PTY-driven harness.
+anyhow = "^1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
