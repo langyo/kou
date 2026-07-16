@@ -352,7 +352,7 @@ impl Screen {
         let mut parser = std::mem::replace(&mut self.parser, vte::Parser::new());
         let mut perf = Perf { screen: self };
         for &b in data {
-            parser.advance(&mut perf, b);
+            parser.advance(&mut perf, &[b]);
         }
         self.parser = parser;
     }
