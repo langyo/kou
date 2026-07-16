@@ -45,7 +45,7 @@ struct Server {
 
 impl Server {
     fn tool_result(text: impl Into<String>) -> CallToolResult {
-        CallToolResult::success(vec![Content::text(text)])
+        CallToolResult::success(vec![ContentBlocktext(text)])
     }
 
     /// Rasterise a VTty screen to a base64-encoded PNG, painted through `theme`.
@@ -252,7 +252,7 @@ impl Server {
         match fmt {
             "image" => {
                 let b64 = self.render_png(&screen, theme)?;
-                Ok(CallToolResult::success(vec![Content::image(
+                Ok(CallToolResult::success(vec![ContentBlockimage(
                     b64,
                     "image/png",
                 )]))
@@ -260,8 +260,13 @@ impl Server {
             "both" => {
                 let b64 = self.render_png(&screen, theme)?;
                 Ok(CallToolResult::success(vec![
-                    Content::text(self.screen_text_json(&args.session_id, alive, &screen, &text)),
-                    Content::image(b64, "image/png"),
+                    ContentBlocktext(self.screen_text_json(
+                        &args.session_id,
+                        alive,
+                        &screen,
+                        &text,
+                    )),
+                    ContentBlockimage(b64, "image/png"),
                 ]))
             }
             _ => Ok(Self::tool_result(self.screen_text_json(
