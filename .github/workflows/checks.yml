@@ -23,12 +23,15 @@ jobs:
       # (built by fonts-release.yml) into the kou font cache before any test
       # runs. `fonts` is a rolling release, not versioned.
       - name: Prepare pinned test fonts
+        continue-on-error: true
         run: |
           mkdir -p ~/.cache/kou/fonts
           gh release download fonts -R "$GITHUB_REPOSITORY" \
-            -p 'fonts.zip' --clobber --output fonts.zip
-          unzip -o fonts.zip -d ~/.cache/kou/fonts
-          ls -la ~/.cache/kou/fonts/
+            -p 'fonts.zip' --clobber --output fonts.zip 2>/dev/null || echo "fonts release not found, skipping"
+          if [ -f fonts.zip ]; then
+            unzip -o fonts.zip -d ~/.cache/kou/fonts
+            ls -la ~/.cache/kou/fonts/
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
